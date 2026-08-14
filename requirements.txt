@@ -1,0 +1,12 @@
+# Funmite POS — approved core stack (Phase 00 foundation)
+# PySide6-Essentials only: QtCore/QtGui/QtWidgets. The full PySide6 metapackage
+# pulls the ~170MB Addons wheel; add it later only if a phase needs QtCharts etc.
+PySide6-Essentials>=6.7
+SQLAlchemy>=2.0
+FastAPI>=0.110
+uvicorn>=0.29
+python-dotenv>=1.0
+
+# Testing
+pytest>=8.0
+pytest-qt>=4.4

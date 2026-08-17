@@ -34,7 +34,7 @@ class ExpensesPage(QWidget):
         self._expenses = []
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
         toolbar = QHBoxLayout()

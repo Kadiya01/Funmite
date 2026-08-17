@@ -46,6 +46,20 @@ class Settings:
     api_host: str = field(default_factory=lambda: os.getenv("FUNMITE_API_HOST", "127.0.0.1"))
     api_port: int = field(default_factory=lambda: _env_int("FUNMITE_API_PORT", 8000))
 
+    # Cloud sync settings (Phase 10C)
+    cloud_sync_enabled: bool = field(
+        default_factory=lambda: os.getenv("FUNMITE_CLOUD_SYNC", "").lower() in ("1", "true", "yes")
+    )
+    cloud_db_url: str = field(
+        default_factory=lambda: os.getenv("FUNMITE_CLOUD_DB_URL", "sqlite:///cloud.db")
+    )
+    sync_push_interval: int = field(
+        default_factory=lambda: _env_int("FUNMITE_SYNC_PUSH_INTERVAL", 30)
+    )
+    sync_pull_interval: int = field(
+        default_factory=lambda: _env_int("FUNMITE_SYNC_PULL_INTERVAL", 60)
+    )
+
     def ensure_directories(self) -> "Settings":
         """Create the runtime directories (data, logs, backups) if missing."""
         for directory in (self.data_dir, self.log_dir, self.backup_dir):

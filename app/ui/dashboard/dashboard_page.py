@@ -107,8 +107,8 @@ class DashboardPage(QWidget):
         self._low_stock: list[Product] = []
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(20)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
 
         # --- Title row ---
         title_row = QHBoxLayout()
@@ -146,6 +146,8 @@ class DashboardPage(QWidget):
         kpi_grid.addWidget(self.kpi_gross_profit, 0, 1)
         kpi_grid.addWidget(self.kpi_net_profit, 0, 2)
         kpi_grid.addWidget(self.kpi_transactions, 0, 3)
+        for col in range(4):
+            kpi_grid.setColumnStretch(col, 1)
         today_layout.addLayout(kpi_grid)
 
         # Payment breakdown row
@@ -155,9 +157,8 @@ class DashboardPage(QWidget):
         self.kpi_pos = _KPICard("BANK POS", "#0369A1")
         self.kpi_transfer = _KPICard("BANK TRANSFER", "#7C3AED")
 
-        payment_row.addWidget(self.kpi_pos)
-        payment_row.addWidget(self.kpi_transfer)
-        payment_row.addStretch(1)
+        payment_row.addWidget(self.kpi_pos, 1)
+        payment_row.addWidget(self.kpi_transfer, 1)
         today_layout.addLayout(payment_row)
 
         layout.addWidget(self._today_group)

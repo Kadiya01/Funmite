@@ -53,7 +53,7 @@ from app.ui.suppliers import SuppliersPage
 from app.ui.theme import C, F, NAV_ICONS, S, generate_stylesheet
 
 APP_TITLE = "Funmite POS"
-NAV_WIDTH = 200
+NAV_WIDTH = 180
 
 
 def _darken(hex_color: str, amount: int = 15) -> str:
@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
         self.current_user = current_user
         self.session_factory = session_factory
         self.setWindowTitle(APP_TITLE)
+        self.setMinimumSize(960, 600)
         self.resize(1100, 700)
 
         if current_user is not None:
@@ -154,7 +155,7 @@ class MainWindow(QMainWindow):
             color: {C.ON_PRIMARY};
             font-size: {F.SIZE_XL};
             font-weight: {F.WEIGHT_BOLD};
-            padding: 18px 0 14px 0;
+            padding: 14px 0 10px 0;
             letter-spacing: 3px;
             border-bottom: 1px solid {_darken(C.SIDEBAR_BG, -5)};
             background-color: {C.SIDEBAR_BG};
@@ -168,7 +169,7 @@ class MainWindow(QMainWindow):
             color: {C.SIDEBAR_FG};
             font-size: {F.SIZE_XS};
             font-weight: {F.WEIGHT_MEDIUM};
-            padding: 0 0 12px 0;
+            padding: 0 0 8px 0;
             letter-spacing: 1px;
             border-bottom: 1px solid {_darken(C.SIDEBAR_BG, -5)};
             background-color: {C.SIDEBAR_BG};

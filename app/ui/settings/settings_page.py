@@ -58,7 +58,7 @@ class SettingsPage(QWidget):
         self._settings = load_settings()
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
         # -- Backup section ------------------------------------------------- #

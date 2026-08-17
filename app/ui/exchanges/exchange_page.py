@@ -67,7 +67,7 @@ class ExchangePage(QWidget):
         self._search_results: list = []
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
         self._build_title(layout)
         self._build_find(layout)

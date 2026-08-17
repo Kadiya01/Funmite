@@ -151,8 +151,8 @@ class PosPage(QWidget):
         self.setStyleSheet(_POS_PAGE_QSS)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(10)
 
         self._build_title_row(layout)
         self._build_scan_row(layout)
@@ -246,7 +246,7 @@ class PosPage(QWidget):
         layout.addLayout(row)
 
         self.search_list = QListWidget(self)
-        self.search_list.setMaximumHeight(110)
+        self.search_list.setMaximumHeight(80)
         self.search_list.itemDoubleClicked.connect(lambda _item: self._add_selected_search_result())
         layout.addWidget(self.search_list)
 
@@ -272,7 +272,7 @@ class PosPage(QWidget):
         row.addWidget(cust_label)
         self.customer_filter = QLineEdit(self)
         self.customer_filter.setPlaceholderText("Filter customers")
-        self.customer_filter.setFixedWidth(180)
+        self.customer_filter.setMaximumWidth(180)
         self.customer_filter.textChanged.connect(self._apply_customer_filter)
         row.addWidget(self.customer_filter)
         self.customer_combo = QComboBox(self)
@@ -300,7 +300,7 @@ class PosPage(QWidget):
         row.addWidget(self.discount_type_combo)
         self.discount_value_input = QLineEdit(self.discount_group)
         self.discount_value_input.setPlaceholderText("e.g. 10 or 5000")
-        self.discount_value_input.setFixedWidth(120)
+        self.discount_value_input.setMaximumWidth(120)
         self.discount_value_input.setEnabled(False)
         self.discount_value_input.textChanged.connect(self._on_discount_changed)
         row.addWidget(self.discount_value_input)
@@ -358,7 +358,7 @@ class PosPage(QWidget):
         row.addWidget(ref_label)
         self.payment_reference_input = QLineEdit(self)
         self.payment_reference_input.setPlaceholderText("POS/Transfer reference")
-        self.payment_reference_input.setFixedWidth(200)
+        self.payment_reference_input.setMaximumWidth(200)
         row.addWidget(self.payment_reference_input)
         layout.addLayout(row)
 
@@ -377,7 +377,7 @@ class PosPage(QWidget):
         layout.addWidget(self.error_label)
 
         self.complete_button = QPushButton("COMPLETE SALE", self)
-        self.complete_button.setMinimumHeight(52)
+        self.complete_button.setMinimumHeight(44)
         self.complete_button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {C.ACCENT};

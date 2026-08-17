@@ -263,7 +263,7 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QPlainTextEdit {{
     font-size: {F.SIZE_BASE};
     font-family: {F.FAMILY};
     color: {C.FG};
-    min-height: 20px;
+    min-height: 28px;
     selection-background-color: {C.ACCENT_LIGHT};
     selection-color: {C.FG};
 }}
@@ -330,7 +330,7 @@ QTableWidget, QTableView {{
 QTableWidget::item, QTableView::item {{
     padding: 6px 10px;
     border-bottom: 1px solid {C.BORDER_LIGHT};
-    min-height: 36px;
+    min-height: 32px;
 }}
 QTableWidget::item:selected, QTableView::item:selected {{
     background-color: {C.TABLE_SELECTION};
@@ -369,7 +369,7 @@ QTabBar::tab {{
     border: 1px solid {C.BORDER};
     border-bottom: none;
     border-radius: {S.RADIUS_SM} {S.RADIUS_SM} 0 0;
-    padding: 8px 20px;
+    padding: 6px 12px;
     font-size: {F.SIZE_SM};
     font-weight: {F.WEIGHT_MEDIUM};
     margin-right: 2px;
@@ -488,7 +488,7 @@ QMessageBox {{
 QMessageBox QLabel {{
     font-size: {F.SIZE_BASE};
     color: {C.FG};
-    min-width: 300px;
+    min-width: 200px;
 }}
 
 /* --- Input Dialog --- */

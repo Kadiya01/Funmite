@@ -58,7 +58,7 @@ class InventoryPage(QWidget):
         self.low_stock_alerter = low_stock_alerter
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
         self.tabs = QTabWidget(self)
@@ -77,6 +77,7 @@ class InventoryPage(QWidget):
     def _build_current_stock_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 8)
 
         toolbar = QHBoxLayout()
         self.refresh_button = QPushButton("Refresh")
@@ -108,6 +109,7 @@ class InventoryPage(QWidget):
     def _build_stock_in_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 8)
 
         info = QLabel(
             "Add stock to a product. Enter how many pieces you received.",
@@ -155,6 +157,7 @@ class InventoryPage(QWidget):
     def _build_adjust_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 8)
 
         info = QLabel(
             "Fix the quantity to what you actually counted. "
@@ -210,6 +213,7 @@ class InventoryPage(QWidget):
     def _build_movement_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 8)
 
         toolbar = QHBoxLayout()
         toolbar.addWidget(QLabel("Product:"))
@@ -243,6 +247,7 @@ class InventoryPage(QWidget):
     def _build_low_stock_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 8, 12, 8)
 
         self.low_stock_label = QLabel("", tab)
         layout.addWidget(self.low_stock_label)

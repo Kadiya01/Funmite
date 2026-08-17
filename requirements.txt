@@ -7,6 +7,9 @@ FastAPI>=0.110
 uvicorn>=0.29
 python-dotenv>=1.0
 
+# Barcode label rendering (Phase 03)
+python-barcode>=0.15
+
 # Testing
 pytest>=8.0
 pytest-qt>=4.4

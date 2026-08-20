@@ -14,7 +14,7 @@ import sys
 
 from pathlib import Path
 
-from PySide6.QtCore import QEventLoop, Qt, QTimer, Signal
+from PySide6.QtCore import QEventLoop, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -239,6 +239,7 @@ class MainWindow(QMainWindow):
         self.nav = QListWidget()
         self.nav.setStyleSheet(_SIDEBAR_QSS)
         self.nav.setSpacing(0)
+        self.nav.setIconSize(QSize(18, 18))
         sidebar_layout.addWidget(self.nav, 1)
 
         # User section at bottom
@@ -322,7 +323,9 @@ class MainWindow(QMainWindow):
             self._add_page("Reports", ReportsPage(self.session_factory, current_user))
             self._add_page("Settings", SettingsPage(self.session_factory, current_user, sync_worker=self.sync_worker))
         else:
+            from app.ui.reports.my_sales_page import MySalesPage
             self._add_page("POS", PosPage(self.session_factory, current_user, printer=NullPrinter()))
+            self._add_page("My Sales", MySalesPage(self.session_factory, current_user))
 
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.nav.setCurrentRow(0)

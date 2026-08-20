@@ -137,6 +137,12 @@ class ReportsPage(QWidget):
     def _build_sales_tab(self) -> None:
         widget = QWidget()
         layout = QVBoxLayout(widget)
+        
+        from app.ui.widgets.charts import ModernBarChart
+        self.sales_chart = ModernBarChart(self)
+        self.sales_chart.setMinimumHeight(300)
+        layout.addWidget(self.sales_chart)
+        
         self.sales_table = _make_table(
             ["Receipt", "Date", "Customer", "Cashier", "Subtotal", "Discount", "Total", "Method"]
         )
@@ -191,6 +197,12 @@ class ReportsPage(QWidget):
     def _build_product_sales_tab(self) -> None:
         widget = QWidget()
         layout = QVBoxLayout(widget)
+        
+        from app.ui.widgets.charts import ModernBarChart
+        self.product_sales_chart = ModernBarChart(self)
+        self.product_sales_chart.setMinimumHeight(240)
+        layout.addWidget(self.product_sales_chart)
+        
         self.product_sales_table = _make_table(
             ["Product", "Qty Sold", "Revenue", "Cost", "Profit"]
         )
@@ -273,7 +285,15 @@ class ReportsPage(QWidget):
     def _populate_sales(self, report) -> None:
         t = self.sales_table
         t.setRowCount(0)
+        
+        # Aggregate daily sales for chart
+        daily_sales = {}
+        
         for row in report.rows:
+            # Aggregate for chart
+            date_str = row.sale_date.strftime("%b %d")
+            daily_sales[date_str] = daily_sales.get(date_str, 0) + float(row.total)
+            
             r = t.rowCount()
             t.insertRow(r)
             values = [
@@ -293,6 +313,12 @@ class ReportsPage(QWidget):
                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                     )
                 t.setItem(r, c, item)
+                
+        # Set chart data
+        chart_data = [(date, val) for date, val in daily_sales.items()]
+        # Sort by date implicitly by keeping them in chronological order if possible, or just plot
+        self.sales_chart.set_data(list(reversed(chart_data))[:10])  # Show up to 10 days
+
 
     def _populate_profit(self, report) -> None:
         t = self.profit_table
@@ -406,7 +432,13 @@ class ReportsPage(QWidget):
     def _populate_product_sales(self, rows) -> None:
         t = self.product_sales_table
         t.setRowCount(0)
+        
+        chart_data = []
+        
         for row in rows:
+            if len(chart_data) < 7:
+                chart_data.append((row.product_name, float(row.revenue)))
+                
             r = t.rowCount()
             t.insertRow(r)
             values = [
@@ -423,6 +455,8 @@ class ReportsPage(QWidget):
                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                     )
                 t.setItem(r, c, item)
+                
+        self.product_sales_chart.set_data(chart_data)
 
     def _populate_cashier_sales(self, rows) -> None:
         t = self.cashier_sales_table

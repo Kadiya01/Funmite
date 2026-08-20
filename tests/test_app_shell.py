@@ -116,8 +116,8 @@ def test_cashier_window_shows_only_pos(qtbot, session_factory):
     qtbot.addWidget(window)
 
     nav_items = [window.nav.item(i).text() for i in range(window.nav.count())]
-    assert nav_items == ["POS"]
-    assert window.stack.count() == 1
+    assert nav_items == ["POS", "My Sales"]
+    assert window.stack.count() == 2
     assert isinstance(window.stack.widget(0), PosPage)
 
 

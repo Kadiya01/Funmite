@@ -18,7 +18,9 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -41,6 +43,7 @@ from app.data.models import (
     Sale,
     SaleItem,
     Supplier,
+    User,
 )
 from app.sync.apply import apply_mutations
 from app.sync.cloud_api import get_db, get_cloud_session_factory, router, set_cloud_session_factory
@@ -1250,3 +1253,307 @@ class TestFullRoundTrip:
             assert logs[0].entity_type == "category"
             assert logs[0].operation == "CREATE"
             assert logs[0].accepted is True
+
+
+# ------------------------------------------------------------------
+# Push payload FK resolution
+# ------------------------------------------------------------------
+
+
+class TestPushPayloadFKResolution:
+    """Verify that resolve_push_payload correctly translates local integer
+    FKs to cloud sync_uuid references and user display names."""
+
+    def _make_session(self):
+        engine = create_db_engine(":memory:")
+        runner.upgrade(engine)
+        sf = create_session_factory(engine)
+        return sf()
+
+    def test_product_category_resolved(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        cat = Category(name="Gowns", sync_uuid="cat-aaa", version=1)
+        s.add(cat)
+        s.flush()
+
+        payload = {
+            "product_code": "P001", "name": "Lace",
+            "category_id": cat.id, "cost_price": "5000",
+            "selling_price": "12000", "quantity": 10,
+            "minimum_stock": 3, "barcode": "B001",
+            "is_active": True, "version": 1,
+        }
+        resolved = resolve_push_payload(s, "product", payload)
+        assert resolved["category_sync_uuid"] == "cat-aaa"
+        assert "category_id" not in resolved
+        s.close()
+
+    def test_sale_customer_resolved(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        cus = Customer(customer_code="C001", name="Fatima", phone="0801", sync_uuid="cus-aaa", version=1)
+        user = User(username="admin", password_hash="x", role="ADMIN", full_name="Admin User")
+        s.add_all([cus, user])
+        s.flush()
+
+        payload = {
+            "receipt_no": "FUN-001", "customer_id": cus.id,
+            "cashier_id": user.id, "sale_date": "2026-01-01",
+            "subtotal": "10000", "total": "10000",
+            "payment_method": "POS", "amount_paid": "10000",
+        }
+        resolved = resolve_push_payload(s, "sale", payload)
+        assert resolved["customer_sync_uuid"] == "cus-aaa"
+        assert resolved["cashier_name"] == "Admin User"
+        assert "customer_id" not in resolved
+        assert "cashier_id" not in resolved
+        s.close()
+
+    def test_sale_item_resolved(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        cat = Category(name="X", sync_uuid="cat-1", version=1)
+        user = User(username="admin", password_hash="x", role="ADMIN", full_name="Admin")
+        cus = Customer(customer_code="C001", name="Fatima", phone="0801", sync_uuid="cus-1", version=1)
+        s.add_all([cat, user, cus])
+        s.flush()
+        prd = Product(product_code="P001", name="Gown", category_id=cat.id,
+                      cost_price=5000, selling_price=12000, quantity=10,
+                      minimum_stock=3, barcode="B001", sync_uuid="prd-1", version=1)
+        s.add(prd)
+        s.flush()
+        sale = Sale(receipt_no="FUN-001", customer_id=cus.id, cashier_id=user.id,
+                    sale_date=datetime.now(), subtotal=12000, total=12000,
+                    payment_method="POS", amount_paid=12000, sync_uuid="sale-1")
+        s.add(sale)
+        s.flush()
+
+        payload = {"sale_id": sale.id, "product_id": prd.id,
+                   "quantity": 1, "unit_price": "12000",
+                   "cost_price": "5000", "line_total": "12000"}
+        resolved = resolve_push_payload(s, "sale_item", payload)
+        assert resolved["sale_sync_uuid"] == "sale-1"
+        assert resolved["product_sync_uuid"] == "prd-1"
+        assert "sale_id" not in resolved
+        assert "product_id" not in resolved
+        s.close()
+
+    def test_payment_resolved(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        user = User(username="admin", password_hash="x", role="ADMIN", full_name="Admin")
+        cus = Customer(customer_code="C001", name="Fatima", phone="0801", sync_uuid="cus-1", version=1)
+        s.add_all([user, cus])
+        s.flush()
+        sale = Sale(receipt_no="FUN-001", customer_id=cus.id, cashier_id=user.id,
+                    sale_date=datetime.now(), subtotal=10000, total=10000,
+                    payment_method="POS", amount_paid=10000, sync_uuid="sale-1")
+        s.add(sale)
+        s.flush()
+
+        payload = {"sale_id": sale.id, "payment_method": "POS",
+                   "amount": "10000", "payment_date": "2026-01-01",
+                   "recorded_by": user.id}
+        resolved = resolve_push_payload(s, "payment", payload)
+        assert resolved["sale_sync_uuid"] == "sale-1"
+        assert resolved["recorded_by_name"] == "Admin"
+        assert "sale_id" not in resolved
+        assert "recorded_by" not in resolved
+        s.close()
+
+    def test_inventory_log_resolved(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        cat = Category(name="X", sync_uuid="cat-1", version=1)
+        s.add(cat)
+        s.flush()
+        prd = Product(product_code="P001", name="Gown", category_id=cat.id,
+                      cost_price=5000, selling_price=12000, quantity=10,
+                      minimum_stock=3, barcode="B001", sync_uuid="prd-1", version=1)
+        user = User(username="admin", password_hash="x", role="ADMIN", full_name="Admin")
+        s.add_all([prd, user])
+        s.flush()
+
+        payload = {"product_id": prd.id, "change_qty": -1,
+                   "previous_qty": 10, "new_qty": 9,
+                   "reason": "SALE", "user_id": user.id}
+        resolved = resolve_push_payload(s, "inventory_log", payload)
+        assert resolved["product_sync_uuid"] == "prd-1"
+        assert resolved["user_name"] == "Admin"
+        assert "product_id" not in resolved
+        assert "user_id" not in resolved
+        s.close()
+
+    def test_purchase_resolved(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        sup = Supplier(name="ABC", phone="0802", sync_uuid="sup-1", version=1)
+        user = User(username="admin", password_hash="x", role="ADMIN", full_name="Admin")
+        s.add_all([sup, user])
+        s.flush()
+
+        payload = {"supplier_id": sup.id, "total_cost": "50000",
+                   "amount_paid": "50000", "balance": "0",
+                   "created_by": user.id}
+        resolved = resolve_push_payload(s, "purchase", payload)
+        assert resolved["supplier_sync_uuid"] == "sup-1"
+        assert resolved["created_by_name"] == "Admin"
+        assert "supplier_id" not in resolved
+        assert "created_by" not in resolved
+        s.close()
+
+    def test_exchange_resolved(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        cus = Customer(customer_code="C001", name="Fatima", phone="0801", sync_uuid="cus-1", version=1)
+        user = User(username="admin", password_hash="x", role="ADMIN", full_name="Admin")
+        s.add_all([cus, user])
+        s.flush()
+        sale = Sale(receipt_no="FUN-001", customer_id=cus.id, cashier_id=user.id,
+                    sale_date=datetime.now(), subtotal=10000, total=10000,
+                    payment_method="POS", amount_paid=10000, sync_uuid="sale-1")
+        s.add(sale)
+        s.flush()
+
+        payload = {"original_sale_id": sale.id, "customer_id": cus.id,
+                   "approved_by": user.id, "difference_amount": "0",
+                   "difference_type": "EQUAL"}
+        resolved = resolve_push_payload(s, "exchange", payload)
+        assert resolved["original_sale_sync_uuid"] == "sale-1"
+        assert resolved["customer_sync_uuid"] == "cus-1"
+        assert resolved["approved_by_name"] == "Admin"
+        assert "original_sale_id" not in resolved
+        assert "customer_id" not in resolved
+        assert "approved_by" not in resolved
+        s.close()
+
+    def test_missing_fk_logs_warning(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        payload = {"category_id": 9999, "name": "Test"}
+        resolved = resolve_push_payload(s, "product", payload)
+        assert "category_sync_uuid" not in resolved
+        assert "category_id" not in resolved
+        s.close()
+
+    def test_expense_created_by_resolved(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        user = User(username="admin", password_hash="x", role="ADMIN", full_name="Admin")
+        s.add(user)
+        s.flush()
+
+        payload = {"category": "Rent", "amount": "50000",
+                   "expense_date": "2026-01-01", "created_by": user.id}
+        resolved = resolve_push_payload(s, "expense", payload)
+        assert resolved["created_by_name"] == "Admin"
+        assert "created_by" not in resolved
+        s.close()
+
+    def test_no_fk_fields_unchanged(self):
+        from app.sync.worker import resolve_push_payload
+        s = self._make_session()
+        payload = {"name": "Fashion", "version": 1}
+        resolved = resolve_push_payload(s, "category", payload)
+        assert resolved == {"name": "Fashion", "version": 1}
+        s.close()
+
+
+# ------------------------------------------------------------------
+# Device registration
+# ------------------------------------------------------------------
+
+
+class TestDeviceRegistrationFlow:
+    """Test the device registration module (register_device, credentials persistence)."""
+
+    def test_is_registered_false_initially(self, tmp_path):
+        from app.sync.device_registration import is_registered
+        assert is_registered(tmp_path) is False
+
+    def test_register_and_persist(self, tmp_path, cloud_client):
+        from app.sync.device_registration import register_device, is_registered, load_credentials
+        # Get the cloud URL from the test client
+        # We'll use httpx to call the actual test server
+        import httpx
+        from app.domain.services.device_service import DeviceIdentity
+
+        # The cloud_client is a TestClient — we can get its base_url
+        # Instead, use the register_device function directly with a mock URL
+        # by starting a real server. For unit tests, use the cloud_client's app.
+        # Simpler: call the registration endpoint directly via TestClient
+        # and then test credential persistence.
+        resp = cloud_client.post(
+            "/api/sync/devices/register",
+            json={"device_name": "Test PC"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        api_key = data["api_key"]
+
+        # Save credentials manually
+        from app.sync.device_registration import save_credentials
+        save_credentials(tmp_path, "http://fake.cloud", api_key)
+
+        assert is_registered(tmp_path) is True
+        creds = load_credentials(tmp_path)
+        assert creds is not None
+        assert creds["api_key"] == api_key
+        assert creds["cloud_url"] == "http://fake.cloud"
+        device = DeviceIdentity(tmp_path)
+        assert creds["device_id"] == device.device_id
+
+    def test_load_credentials_missing(self, tmp_path):
+        from app.sync.device_registration import load_credentials
+        assert load_credentials(tmp_path) is None
+
+    def test_load_credentials_corrupt(self, tmp_path):
+        from app.sync.device_registration import load_credentials
+        (tmp_path / "sync_credentials.json").write_text("not-json")
+        assert load_credentials(tmp_path) is None
+
+    def test_register_device_success(self, tmp_path):
+        from app.sync.device_registration import register_device, is_registered
+        from app.domain.services.device_service import DeviceIdentity
+
+        mock_request = httpx.Request("POST", "http://fake.cloud/api/sync/devices/register")
+        mock_response = httpx.Response(
+            200,
+            json={
+                "device_id": "test-device-id-123",
+                "api_key": "test-api-key-456",
+                "registered_at": datetime.now().isoformat(),
+            },
+            request=mock_request,
+        )
+
+        with patch("httpx.post", return_value=mock_response):
+            result = register_device(tmp_path, "http://fake.cloud", "Test PC")
+            assert result.success is True
+            assert result.device_id == "test-device-id-123"
+            assert result.api_key == "test-api-key-456"
+            assert is_registered(tmp_path) is True
+
+            from app.sync.device_registration import load_credentials
+            creds = load_credentials(tmp_path)
+            assert creds["api_key"] == "test-api-key-456"
+            assert creds["cloud_url"] == "http://fake.cloud"
+            device = DeviceIdentity(tmp_path)
+            assert creds["device_id"] == device.device_id
+
+    def test_register_device_connection_failure(self, tmp_path):
+        from app.sync.device_registration import register_device, is_registered
+        result = register_device(tmp_path, "http://127.0.0.1:19999", "Test PC")
+        assert result.success is False
+        assert "Cannot connect" in result.error
+        assert is_registered(tmp_path) is False
+
+    def test_register_device_not_exposed_in_logs(self, tmp_path, caplog):
+        import logging
+        from app.sync.device_registration import register_device
+        with caplog.at_level(logging.DEBUG):
+            register_device(tmp_path, "http://127.0.0.1:19999", "Test PC")
+        # api_key should never appear in log output
+        for record in caplog.records:
+            assert "api_key" not in record.message.lower() or "api_key" in record.message

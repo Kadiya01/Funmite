@@ -126,7 +126,7 @@ def test_app_controller_passes_session_factory_to_window(qtbot, session_factory,
 
     app = QApplication.instance()
     controller = AppController(app, session_factory)
-    monkeypatch.setattr(QApplication, "exec", lambda self: 0)
+    monkeypatch.setattr("app.main.QEventLoop.exec", lambda self: 0)
 
     controller._show(_admin_user())
 

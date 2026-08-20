@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import shutil
 import sqlite3
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -100,7 +101,7 @@ class BackupService:
         """
         require_permission(user, CAP_BACKUP)
 
-        filename = f"{BACKUP_PREFIX}{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}{BACKUP_SUFFIX}"
+        filename = f"{BACKUP_PREFIX}{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}{BACKUP_SUFFIX}"
         backup_path = self.backup_dir / filename
 
         try:
@@ -153,7 +154,19 @@ class BackupService:
                 # Parse the datetime from the filename
                 try:
                     date_str = entry.name[len(BACKUP_PREFIX) : -len(BACKUP_SUFFIX)]
-                    created_at = datetime.strptime(date_str, "%Y%m%d_%H%M%S_%f")
+                    # Try new format: YYYYMMDD_HHMMSS_<8hex> (pre_restore_ prefix also possible)
+                    # Strip pre_restore_ prefix if present
+                    parse_str = date_str
+                    if parse_str.startswith("pre_restore_"):
+                        parse_str = parse_str[len("pre_restore_"):]
+                    # The UUID part is after the second underscore in the timestamp
+                    # Format: YYYYMMDD_HHMMSS_<hex8>
+                    parts = parse_str.split("_")
+                    if len(parts) >= 3:
+                        date_part = "_".join(parts[:2])  # YYYYMMDD_HHMMSS
+                        created_at = datetime.strptime(date_part, "%Y%m%d_%H%M%S")
+                    else:
+                        created_at = datetime.strptime(parse_str, "%Y%m%d_%H%M%S_%f")
                 except ValueError:
                     try:
                         date_str = entry.name[len(BACKUP_PREFIX) : -len(BACKUP_SUFFIX)]
@@ -206,7 +219,7 @@ class BackupService:
 
         # Create pre-restore safety backup
         pre_restore_name = (
-            f"{BACKUP_PREFIX}pre_restore_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+            f"{BACKUP_PREFIX}pre_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
             f"{BACKUP_SUFFIX}"
         )
         pre_restore_path = self.backup_dir / pre_restore_name

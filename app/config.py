@@ -1,19 +1,33 @@
 """Application configuration.
 
 Settings are read from environment variables (with an optional ``.env`` file)
-and validated through a frozen dataclass. No secrets should ever live here or
+and validated through a frozen dataclass.  No secrets should ever live here or
 in the committed ``.env.example`` template.
+
+When frozen by PyInstaller, ``PROJECT_ROOT`` resolves to the directory
+containing the ``.exe`` so that ``data/``, ``logs/`` and ``backups/`` are
+created next to the executable rather than inside the temporary extraction dir.
 """
 
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+def _frozen_root() -> Path:
+    """Return the directory that contains the running executable (or its
+    parent for onefile bundles where ``sys.executable`` is the temp dir)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
+PROJECT_ROOT = _frozen_root()
 
 
 def _env_path(name: str, default: Path) -> Path:
@@ -69,5 +83,7 @@ class Settings:
 
 def load_settings() -> Settings:
     """Load settings from the environment and an optional ``.env`` file."""
-    load_dotenv(PROJECT_ROOT / ".env")
+    env_file = PROJECT_ROOT / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
     return Settings()

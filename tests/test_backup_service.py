@@ -157,9 +157,11 @@ class TestBackupCreation:
         user = _admin_user(session)
         svc = _service(session, db, tmp_path / "backups")
         result = svc.create_backup(user)
-        # Extract the date part from the filename
+        # Extract the date part from the filename — new format: YYYYMMDD_HHMMSS_<8hex>
         date_str = result.filename[len(BACKUP_PREFIX) : -len(BACKUP_SUFFIX)]
-        datetime.strptime(date_str, "%Y%m%d_%H%M%S_%f")  # Should not raise
+        parts = date_str.split("_")
+        assert len(parts) >= 3
+        datetime.strptime("_".join(parts[:2]), "%Y%m%d_%H%M%S")  # Should not raise
 
     def test_backup_is_valid_sqlite(self, session, tmp_path):
         db = tmp_path / "funmite.db"

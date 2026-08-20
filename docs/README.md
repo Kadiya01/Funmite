@@ -10,13 +10,12 @@ UI  ->  Application Services  ->  Data Access  ->  SQLite
   exchanges, purchases, suppliers, expenses, reports, settings implemented;
   more later).
 - `app/domain` — business rules, permissions, services, session handling.
-- `app/data` — SQLAlchemy engine, repositories, migrations (Phase 01).
+- `app/data` — SQLAlchemy engine, repositories, migrations (Phases 01, 10).
 - `app/barcode` — barcode generation, labels, scanner normalization (Phase 03).
 - `app/printing` — receipt data, ESC/POS rendering and the printer abstraction
   (Phase 05).
-- `app/api` — local FastAPI LAN service (later phase).
-- `app/reports`, `app/security`, `app/sync` — dedicated service layers (later
-  phases).
+- `app/sync` — cloud sync layer: outbox pattern, worker, cloud API, device
+  registration, conflict resolution, FK resolution (Phase 10).
 
 Business rules are never placed directly in UI event handlers; UI calls
 application services and displays results.

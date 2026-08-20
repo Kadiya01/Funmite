@@ -116,7 +116,7 @@ class CloudSale(CloudBase):
 
     sync_uuid: Mapped[str] = mapped_column(String(36), primary_key=True)
     receipt_no: Mapped[str] = mapped_column(String(50))
-    customer_sync_uuid: Mapped[str] = mapped_column(String(36))
+    customer_sync_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
     cashier_name: Mapped[str] = mapped_column(String(150))
     sale_date: Mapped[datetime] = mapped_column(DateTime)
     subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2))

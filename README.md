@@ -10,10 +10,11 @@ unresolved client decisions.
 
 ## Status
 
-**Phase 09 (Backup & Recovery) — complete.** Phases 00 (Foundation), 01
-(Database), 02 (Authentication & Authorization), 03 (Products, Customers &
-Barcodes), 04 (Inventory), 05 (POS Sales), 06 (Exchanges), 07 (Purchases,
-Suppliers & Expenses) and 08 (Reports & Dashboard) are also complete.
+**Phase 10 (Hybrid Offline-First Cloud Sync) — complete.** Phases 00
+(Foundation), 01 (Database), 02 (Authentication & Authorization), 03
+(Products, Customers & Barcodes), 04 (Inventory), 05 (POS Sales), 06
+(Exchanges), 07 (Purchases, Suppliers & Expenses), 08 (Reports & Dashboard)
+and 09 (Backup & Recovery) are also complete.
 
 Implemented so far:
 

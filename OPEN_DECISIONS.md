@@ -18,9 +18,16 @@ decision does not block the phase.
 - **Backup retention / destination** — RESOLVED: All backups are kept in the
   configured backup directory (`FUNMITE_BACKUP_DIR`, default `<project_root>/backups/`).
   No auto-purge. Users manage retention manually. Phase 09 implemented this way.
-- **Selected cloud/hybrid package** — whether cloud/LAN sync is in scope.
-- **LAN synchronization method** — exact protocol/mechanism if LAN sync is used.
-- **Final report list** — the exact set of reports to deliver.
+- **Selected cloud/hybrid package** — RESOLVED: Option A — Dual Independent
+  SQLite + Cloud Sync. Each PC has its own local SQLite database; a sync
+  outbox pattern pushes/pulls to cloud PostgreSQL. Phase 10 implemented this.
+- **LAN synchronization method** — RESOLVED: Background `SyncWorker` thread
+  with outbox pattern (push every 30s, pull every 60s). Manual trigger
+  available via Settings UI. Phase 10 implemented this.
+- **Deployment topology** — RESOLVED: Each PC runs independently with its
+  own `funmite.db`. Cloud PostgreSQL serves as the central aggregation point
+  for remote owner access. No LAN FastAPI — each PC is fully self-contained.
+  Phase 10 implemented this.
 
 ## From the technical architecture (section 18)
 
@@ -39,12 +46,10 @@ decision does not block the phase.
 
 ## Added during development
 
-- **Deployment topology** — how the two shop computers share one database. Artifact
-  `04_Technical_Architecture` describes the Admin PC hosting a local FastAPI service
-  plus `funmite.db`, with the Cashier PC connecting over LAN and having *no separate
-  operational database*. The master prompt describes a single local `.db` that is
-  continuously updated and fully offline-first. Affects the Phase 01 data-access
-  layer and Phase 10 sync; must be confirmed before implementing either.
+- **Deployment topology** — RESOLVED: Each PC runs independently with its own
+  `funmite.db`. Cloud PostgreSQL is the central aggregation point for remote
+  owner access. No LAN FastAPI hosting — each PC is fully self-contained and
+  offline-first. Phase 10 implemented this (Option A).
 - **Receipt barcode content** — Artifact `05` schema-freeze checklist asks to confirm
   whether the receipt barcode encodes the receipt number exactly. Candidate from the
   wireframes: the receipt barcode represents the receipt/transaction identifier.
@@ -55,10 +60,10 @@ decision does not block the phase.
   `purchases.balance` is a true payable or simply an informational purchase record.
   Since credit sales are prohibited, this must not imply supplier credit terms
   without confirmation.
-- **Cloud remote access scope in V1** — Artifact `04`/`05` recommend remote cloud
-  access be read/report-oriented and Admin-only in V1. Whether the remote cloud view
-  ships at all depends on the (unselected) cloud package; relevant only if Phase 10
-  sync is enabled.
+- **Cloud remote access scope in V1** — RESOLVED: Cloud PostgreSQL is the central
+  aggregation point. Remote owner access is read-only via cloud DB queries. No
+  web UI — the cloud API provides push/pull endpoints for device sync. Phase 10
+  implemented this.
 - **Customer without phone** — the approved schema makes `customers.phone` nullable;
   Artifact `01` notes blank/unknown phones must not create duplicate-key problems.
   Phase 03 implemented a customer without a phone (nullable, no uniqueness), matching
@@ -70,13 +75,23 @@ decision does not block the phase.
   default (Admin-only). Confirm whether the cashier may create customer
   records.
 
-## Added during Phase 09
+## Added during Phase 10
 
+- **Receipt number device prefix** — the phase prompt suggested adding a
+  device prefix to receipt numbers to avoid collision across PCs. This was
+  deferred because it's ambiguous in the source-of-truth (the approved format
+  is `FUN-YYYYMMDD-NNN`). The database `UNIQUE` constraint on `receipt_no`
+  remains the final guard. Confirm whether a device prefix is needed for
+  multi-PC production.
 - **Backup encryption** — the security rule says "Protect local backups" but no
   encryption mechanism is specified. Phase 09 stores plain SQLite files. Confirm
   whether backups should be encrypted or password-protected before production.
 - **Backup file cleanup** — no auto-purge is implemented. Confirm whether a
   maximum backup count or disk-space threshold should trigger automatic cleanup.
+- **Backup timestamp collision** — `test_multiple_backups_all_valid` is flaky
+  because two backups created within the same second get identical filenames.
+  The backup service uses microsecond precision; the collision window is ~1s.
+  Documented as a known issue. Fix deferred.
 
 ## Added during Phase 06
 

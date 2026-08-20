@@ -2,6 +2,80 @@
 
 All notable changes to this project are documented here.
 
+## [1.2.0] — Phase 11 Production Hardening
+
+- Fixed pre-existing backup filename timestamp collision: backup filenames now
+  include a UUID fragment (`funmite_YYYYMMDD_HHMMSS_<8hex>.db`) instead of
+  relying solely on microsecond precision, preventing overwrites when backups
+  are created rapidly on Windows.
+- Updated `app/config.py`: `PROJECT_ROOT` resolves to the executable directory
+  when frozen by PyInstaller, ensuring `data/`, `logs/`, and `backups/` are
+  created next to the `.exe`.
+- Updated `app/data/migrations/runner.py`: migration discovery works correctly
+  in PyInstaller frozen mode.
+- Added PyInstaller spec file (`funmite_pos.spec`) and `run.py` entry point
+  for building the Windows executable.
+- Built `dist/FunmitePOS/FunmitePOS.exe` — 110 MB onefile-less folder build.
+- Verified: app launches, creates `data/funmite.db`, `logs/`, `backups/`
+  directories next to the executable.
+- Created `DEPLOYMENT_CHECKLIST.md` — 10-section production deployment guide
+  covering build, installation, hardware tests, two-PC sync, offline operation,
+  reconnection verification, security, and known issues.
+- Created `UAT_CHECKLIST.md` — 92-item client acceptance testing checklist
+  covering all features: login, products, customers, POS, receipts, inventory,
+  purchases, expenses, exchanges, reports, dashboard, backup, sync, offline.
+- All 657 tests passing (0 failures).
+- Version bumped to 1.2.0.
+
+## [1.1.0] — Phase 10 Hybrid Offline-First Cloud Sync
+
+- Architecture: **Option A — Dual Independent SQLite + Cloud Sync**. Each PC
+  runs its own local `funmite.db` and syncs to a cloud PostgreSQL database.
+  Offline-first is non-negotiable: all POS, sales, inventory, receipt, exchange,
+  report, and backup operations work without Internet.
+- Added cloud ORM models (`app/sync/cloud_models.py`): cloud-only schema for
+  push/pull. `CloudSale.customer_sync_uuid` is nullable for walk-in customers.
+- Added cloud database management (`app/sync/cloud_db.py`): engine/session with
+  `StaticPool` for in-memory test databases.
+- Added wire format schemas (`app/sync/schemas.py`): Pydantic models for push/pull
+  payloads.
+- Added cloud API endpoints (`app/sync/cloud_api.py`): FastAPI `/api/sync/push`,
+  `/api/sync/pull`, `/api/sync/status`, `/api/sync/devices/register`. Version
+  column conditionally injected for append-only entities.
+- Added `SyncClient` (`app/sync/client.py`): httpx-based client with per-request
+  session creation for thread safety.
+- Added pull applier (`app/sync/apply.py`): applies pulled mutations locally with
+  FK resolution, append-only dedup, version-based conflict resolution, and
+  user-record skip.
+- Added `SyncWorker` (`app/sync/worker.py`): background daemon thread for push/pull.
+  `resolve_push_payload()` translates local integer FKs to sync_uuid references.
+  Public `trigger_push()`/`trigger_pull()` methods for manual sync.
+- Added device registration (`app/sync/device_registration.py`): register device
+  with cloud, load/save credentials.
+- Added migration `003_sync_metadata.py`: adds `sync_uuid`, `version`, `device_id`
+  columns to all synced entity tables.
+- `app/main.py`: `AppController` manages `SyncWorker` lifecycle (start on login,
+  stop on logout). `MainWindow` shows cloud sync status indicator (green/yellow/gray)
+  refreshed every 5 seconds.
+- `app/ui/settings/settings_page.py`: Cloud Sync section with status display,
+  device ID, pending count, registration form, and Sync Now button.
+- 10 services updated with `SyncService.enqueue_create/update/delete` calls for
+  sync outbox.
+- Conflict strategy: append-only for financial records; version + last-write-wins
+  for mutable reference data; users never synced.
+- Globally unique IDs: `sync_uuid` (UUID v4) on all synced entities. Local `id`
+  stays as local PK.
+- Inventory sync: movement-based (sync `inventory_logs`, not `product.quantity`).
+- Receipt numbers: `FUN-YYYYMMDD-NNN` format preserved through sync round-trip.
+- `CloudSale.customer_sync_uuid` made nullable: walk-in sales with no customer
+  push `customer_sync_uuid=NULL` to the cloud.
+- `resolve_push_payload()`: `customer_id=0` treated as unresolvable (walk-in).
+  `hasattr(model_cls, "version")` guard prevents injecting version into
+  append-only cloud entities.
+- 124 new tests across 3 test files (47 sync, 56 cloud sync, 21 integration).
+  Full suite: 657 tests passing.
+- Version bumped to 1.1.0.
+
 ## [1.0.0] — Phase 09 Backup & Recovery
 
 - Added `BackupService` (`app/domain/services/backup_service.py`):

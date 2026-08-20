@@ -69,6 +69,17 @@ _CLOUD_ONLY_FIELDS = frozenset({
     "created_by_name", "user_name", "approved_by_name",
 })
 
+# User FK fields that are never synced (users table is excluded from sync).
+# When a payload from the cloud is missing one of these, default to user 1 (admin).
+_USER_FK_DEFAULTS: dict[str, int] = {
+    "sale": {"cashier_id": 1},
+    "payment": {"recorded_by": 1},
+    "inventory_log": {"user_id": 1},
+    "purchase": {"created_by": 1},
+    "expense": {"created_by": 1},
+    "exchange": {"approved_by": 1},
+}
+
 _FK_MAPPINGS: dict[str, list[tuple[str, str, type]]] = {
     "product": [
         ("category_sync_uuid", "category_id", Category),
@@ -211,6 +222,11 @@ def _prepare_local_data(session: Session, entity_type: str, payload: dict) -> di
                     "Cannot resolve FK: %s -> %s (not found locally)",
                     local_field, uuid_val,
                 )
+
+    user_fk_defaults = _USER_FK_DEFAULTS.get(entity_type, {})
+    for field, default_val in user_fk_defaults.items():
+        if field not in data or data[field] is None:
+            data[field] = default_val
 
     _coerce_datetime_strings(session, entity_type, data)
 

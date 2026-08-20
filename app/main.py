@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEventLoop, Qt, QTimer, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -39,6 +40,7 @@ from app.domain.services.auth_service import AuthService
 from app.domain.session import CurrentUser
 from app.logging_config import setup_logging
 from app.printing.printer import NullPrinter
+from app.sync.worker import SyncWorker
 from app.ui.customers import CustomersPage
 from app.ui.dashboard import DashboardPage
 from app.ui.expenses import ExpensesPage
@@ -102,10 +104,12 @@ class MainWindow(QMainWindow):
         self,
         current_user: CurrentUser | None = None,
         session_factory=None,
+        sync_worker: SyncWorker | None = None,
     ) -> None:
         super().__init__()
         self.current_user = current_user
         self.session_factory = session_factory
+        self.sync_worker = sync_worker
         self.setWindowTitle(APP_TITLE)
         self.setMinimumSize(960, 600)
         self.resize(1100, 700)
@@ -133,6 +137,48 @@ class MainWindow(QMainWindow):
         if self.current_user is not None:
             status = f"{self.current_user.display_label}   |   {status}"
         status_bar.showMessage(status)
+
+        self._sync_indicator = QLabel("☁ Offline")
+        self._sync_indicator.setStyleSheet(
+            f"color: {C.MUTED_FG}; padding-right: 8px; font-size: 11px;"
+        )
+        status_bar.addPermanentWidget(self._sync_indicator)
+
+        if self.sync_worker is not None:
+            self._sync_timer = QTimer(self)
+            self._sync_timer.timeout.connect(self._refresh_sync_indicator)
+            self._sync_timer.start(5000)
+            self._refresh_sync_indicator()
+
+    def _refresh_sync_indicator(self) -> None:
+        """Update the sync status indicator in the status bar."""
+        if self.sync_worker is None:
+            self._sync_indicator.setText("☁ Offline")
+            self._sync_indicator.setStyleSheet(
+                f"color: {C.MUTED_FG}; padding-right: 8px; font-size: 11px;"
+            )
+            return
+        try:
+            with session_scope(self.session_factory) as session:
+                from app.data.repositories.sync_repository import SyncQueueRepository
+                repo = SyncQueueRepository(session)
+                pending = repo.get_pending(limit=10000)
+                count = len(pending)
+                if count == 0:
+                    self._sync_indicator.setText("☁ Synced")
+                    self._sync_indicator.setStyleSheet(
+                        f"color: {C.SUCCESS}; padding-right: 8px; font-size: 11px;"
+                    )
+                else:
+                    self._sync_indicator.setText(f"☁ {count} pending")
+                    self._sync_indicator.setStyleSheet(
+                        f"color: #F59E0B; padding-right: 8px; font-size: 11px;"
+                    )
+        except Exception:
+            self._sync_indicator.setText("☁ Offline")
+            self._sync_indicator.setStyleSheet(
+                f"color: {C.MUTED_FG}; padding-right: 8px; font-size: 11px;"
+            )
 
     def _build_navigation(self, current_user: CurrentUser) -> None:
         container = QWidget(self)
@@ -261,7 +307,7 @@ class MainWindow(QMainWindow):
             self._add_page("Suppliers", SuppliersPage(self.session_factory, current_user))
             self._add_page("Expenses", ExpensesPage(self.session_factory, current_user))
             self._add_page("Reports", ReportsPage(self.session_factory, current_user))
-            self._add_page("Settings", SettingsPage(self.session_factory, current_user))
+            self._add_page("Settings", SettingsPage(self.session_factory, current_user, sync_worker=self.sync_worker))
         else:
             self._add_page("POS", PosPage(self.session_factory, current_user, printer=NullPrinter()))
 
@@ -306,6 +352,9 @@ class AppController:
         self.session_factory = session_factory
         self._window: MainWindow | None = None
         self._relogin = False
+        self._worker: SyncWorker | None = None
+        self._settings = load_settings()
+        self._show_loop: QEventLoop | None = None
 
     def _authenticator(self):
         def authenticate(username: str, password: str):
@@ -313,6 +362,42 @@ class AppController:
                 return AuthService(session).authenticate(username, password)
 
         return authenticate
+
+    def _start_sync_worker(self) -> SyncWorker | None:
+        """Start the background sync worker if cloud sync is configured."""
+        if not self._settings.cloud_sync_enabled:
+            return None
+        cred_path = self._settings.data_dir / "sync_credentials.json"
+        if not cred_path.exists():
+            return None
+        try:
+            from app.sync.cloud_db import (
+                create_cloud_engine,
+                create_cloud_session_factory,
+                init_cloud_schema,
+            )
+            engine = create_cloud_engine(self._settings.cloud_db_url)
+            init_cloud_schema(engine)
+            cloud_sf = create_cloud_session_factory(engine)
+            worker = SyncWorker(
+                local_session_factory=self.session_factory,
+                cloud_session_factory=cloud_sf,
+                settings=self._settings,
+                push_interval=self._settings.sync_push_interval,
+                pull_interval=self._settings.sync_pull_interval,
+            )
+            worker.start()
+            return worker
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Failed to start sync worker")
+            return None
+
+    def _stop_sync_worker(self) -> None:
+        """Stop the background sync worker if running."""
+        if self._worker is not None:
+            self._worker.stop()
+            self._worker = None
 
     def start(self) -> int:
         self.app.setQuitOnLastWindowClosed(False)
@@ -332,16 +417,25 @@ class AppController:
         return dialog.current_user
 
     def _show(self, current_user: CurrentUser) -> None:
-        self._window = MainWindow(current_user=current_user, session_factory=self.session_factory)
+        self._stop_sync_worker()
+        self._worker = self._start_sync_worker()
+        self._window = MainWindow(
+            current_user=current_user,
+            session_factory=self.session_factory,
+            sync_worker=self._worker,
+        )
         self._window.logout_requested.connect(self._on_logout)
         self._window.show()
-        self.app.exec()
+        self._show_loop = QEventLoop()
+        self._show_loop.exec()
+        self._show_loop = None
 
     def _on_logout(self) -> None:
         window = self._window
         if window is None or window.current_user is None:
             return
         self._relogin = True
+        self._stop_sync_worker()
         with self.session_factory() as session:
             AuditService(session).record(
                 user_id=window.current_user.user_id,
@@ -350,6 +444,8 @@ class AppController:
             )
             session.commit()
         window.close()
+        if self._show_loop is not None:
+            self._show_loop.quit()
 
 
 def main() -> int:

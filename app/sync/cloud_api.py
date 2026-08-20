@@ -289,6 +289,8 @@ def _upsert_cloud_entity(
     # Ensure key fields are set from the mutation envelope
     payload["sync_uuid"] = mut.sync_uuid
     payload["device_id"] = device_id
+    if hasattr(model_cls, "version"):
+        payload["version"] = mut.version
 
     # Coerce string datetimes to actual datetime objects for SQLite
     payload = _coerce_datetime_fields(model_cls, payload)

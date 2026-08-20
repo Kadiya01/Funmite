@@ -36,6 +36,8 @@ from app.data.models import (
     Sale,
     SaleItem,
     Supplier,
+    SyncQueueItem,
+    User,
 )
 from app.data.repositories.sync_repository import SyncQueueRepository, SyncStateRepository
 from app.domain.services.device_service import DeviceIdentity
@@ -90,13 +92,54 @@ _FK_SYNC_UUID_FIELDS: dict[str, list[tuple[str, str, type]]] = {
 
 # Cloud-payload display-name fields (mapped from local user FK).
 _USER_DISPLAY_FIELDS: dict[str, list[tuple[str, str, type]]] = {
-    "sale": [("cashier_id", "cashier_name", None)],
-    "payment": [("recorded_by", "recorded_by_name", None)],
-    "inventory_log": [("user_id", "user_name", None)],
-    "purchase": [("created_by", "created_by_name", None)],
-    "expense": [("created_by", "created_by_name", None)],
-    "exchange": [("approved_by", "approved_by_name", None)],
+    "sale": [("cashier_id", "cashier_name", User)],
+    "payment": [("recorded_by", "recorded_by_name", User)],
+    "inventory_log": [("user_id", "user_name", User)],
+    "purchase": [("created_by", "created_by_name", User)],
+    "expense": [("created_by", "created_by_name", User)],
+    "exchange": [("approved_by", "approved_by_name", User)],
 }
+
+
+def resolve_push_payload(
+    session, entity_type: str, payload: dict
+) -> dict:
+    """Translate local integer FKs to sync_uuid references and user display names.
+
+    The business services enqueue payloads with local integer foreign keys
+    (e.g. ``category_id``, ``customer_id``).  The cloud API expects
+    ``*_sync_uuid`` references for entity FKs and ``*_name`` display strings
+    for user FKs (users are never synced).
+
+    This function mutates and returns a *new* dict — the original is not
+    modified.
+    """
+    data = dict(payload)
+
+    # 1. Resolve entity FKs: local_id → sync_uuid
+    for local_field, cloud_field, model_cls in _FK_SYNC_UUID_FIELDS.get(entity_type, []):
+        local_id = data.pop(local_field, None)
+        if local_id is not None and local_id != 0:
+            related = session.get(model_cls, local_id)
+            if related is not None and related.sync_uuid:
+                data[cloud_field] = related.sync_uuid
+            else:
+                log.warning(
+                    "Cannot resolve %s=%s to sync_uuid for %s",
+                    local_field, local_id, entity_type,
+                )
+
+    # 2. Resolve user FKs: local_id → display name
+    for local_field, cloud_field, user_cls in _USER_DISPLAY_FIELDS.get(entity_type, []):
+        local_id = data.pop(local_field, None)
+        if local_id is not None:
+            user = session.get(user_cls, local_id)
+            if user is not None:
+                data[cloud_field] = user.full_name or user.username
+            else:
+                data[cloud_field] = "Unknown"
+
+    return data
 
 
 class SyncWorker:
@@ -168,6 +211,20 @@ class SyncWorker:
             self._thread = None
         log.info("Sync worker stopped")
 
+    def trigger_push(self) -> None:
+        """Execute a single push cycle immediately."""
+        try:
+            self._do_push()
+        except Exception:
+            log.exception("Manual push failed")
+
+    def trigger_pull(self) -> None:
+        """Execute a single pull cycle immediately."""
+        try:
+            self._do_pull()
+        except Exception:
+            log.exception("Manual pull failed")
+
     def _run_loop(self) -> None:
         last_push = 0.0
         last_pull = 0.0
@@ -206,22 +263,31 @@ class SyncWorker:
 
         self._syncing = True
         try:
+            pending_items: list = []
+            mutations: list[Mutation] = []
+
             with session_scope(self._local_sf) as session:
                 queue = SyncQueueRepository(session)
-                pending = queue.get_pending(limit=100)
-                if not pending:
+                pending_items = queue.get_pending(limit=100)
+                if not pending_items:
                     return
 
-                mutations = []
-                for item in pending:
+                for item in pending_items:
                     queue.mark_syncing(item)
-                    payload = json.loads(item.payload)
+                    raw_payload = json.loads(item.payload)
+                    sync_uuid = raw_payload.pop("sync_uuid", "")
+                    version = raw_payload.pop("version", 1)
+
+                    resolved_payload = resolve_push_payload(
+                        session, item.entity_type, raw_payload,
+                    )
+
                     mutation = Mutation(
                         entity_type=item.entity_type,
                         operation=item.operation,
-                        sync_uuid=payload.pop("sync_uuid", ""),
-                        payload=payload,
-                        version=payload.pop("version", 1),
+                        sync_uuid=sync_uuid,
+                        payload=resolved_payload,
+                        version=version,
                         device_id=item.device_id or device.device_id,
                         created_at=item.created_at,
                     )
@@ -230,8 +296,7 @@ class SyncWorker:
             # Push outside the local transaction
             result = client.push(mutations)
             if result is None:
-                # Network failed; reset items back to pending
-                self._reset_push_items(mutations)
+                self._reset_push_items()
                 self._last_error = "Push request failed"
                 return
 
@@ -242,25 +307,24 @@ class SyncWorker:
             # Mark items as synced based on result
             with session_scope(self._local_sf) as session:
                 queue = SyncQueueRepository(session)
-                for i, item_id in enumerate(
-                    [m.sync_uuid for m in mutations]
-                ):
+                for i, item in enumerate(pending_items):
                     if i < result.accepted:
-                        pending_item = queue.get_by_id(i + 1)
-                        if pending_item:
-                            queue.mark_synced(pending_item)
+                        queue.mark_synced(item)
         finally:
             self._syncing = False
 
-    def _reset_push_items(self, mutations: list[Mutation]) -> None:
+    def _reset_push_items(self) -> None:
         """Reset SYNCING items back to PENDING on network failure."""
         try:
             with session_scope(self._local_sf) as session:
                 queue = SyncQueueRepository(session)
-                pending = queue.get_pending(limit=500)
-                for item in pending:
-                    if item.status == "SYNCING":
-                        queue.reset_failed(item)
+                syncing = list(
+                    session.query(SyncQueueItem).filter(
+                        SyncQueueItem.status == "SYNCING"
+                    )
+                )
+                for item in syncing:
+                    queue.reset_failed(item)
         except Exception:
             log.exception("Failed to reset push items")
 

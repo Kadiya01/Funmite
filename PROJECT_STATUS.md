@@ -5,7 +5,7 @@ actual code and test output before trusting the claims below.
 
 ## Current phase
 
-**Phase 11 — Production Hardening & Deployment: COMPLETE** (657 tests passing)
+**Phase 12 — Physical Hardware Validation & UAT: IN PROGRESS** (657 tests passing)
 
 ## Completed phases
 
@@ -23,10 +23,13 @@ actual code and test output before trusting the claims below.
 | 09 | Backup & Recovery | COMPLETE |
 | 10 | Hybrid Offline-First Cloud Sync | COMPLETE |
 | 11 | Production Hardening & Deployment | COMPLETE |
+| 12 | Physical Hardware Validation & UAT | IN PROGRESS |
 
 ## Next action
 
-Ready for client UAT. Do not jump to Phase 12 without client sign-off.
+Physical hardware validation required: barcode scanner, thermal printer, two-PC
+sync, clean Windows installation. Then client UAT. Do not proceed to website
+development.
 
 ## Phase 05 summary
 

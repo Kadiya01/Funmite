@@ -38,6 +38,18 @@ All notable changes to this project are documented here.
 - All 657 tests passing (0 failures, 0 flaky).
 - Version bumped to 1.2.0.
 
+## [1.2.1] — Phase 12 Hardware Validation & UAT Preparation
+
+- Created `docs/CLIENT_UAT_CHECKLIST.md` — 116 test scenarios for client
+  acceptance testing with PASS/FAIL, client comment, developer comment fields.
+- Created `docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md` — complete deployment guide
+  with PC requirements, installation, hardware setup, admin/cashier setup,
+  cloud registration, backup/restore, recovery, and update procedures.
+- Created `docs/PHASE12_FINAL_REPORT.md` — Phase 12 completion report with
+  hardware validation status, security audit, and production readiness decision.
+- All 657 tests passing (0 failures, 0 flaky).
+- Classification: AUTOMATED TEST READY — physical hardware validation pending.
+
 ## [1.1.0] — Phase 10 Hybrid Offline-First Cloud Sync
 
 - Architecture: **Option A — Dual Independent SQLite + Cloud Sync**. Each PC

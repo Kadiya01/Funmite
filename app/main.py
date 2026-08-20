@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import sys
 
+from pathlib import Path
+
 from PySide6.QtCore import QEventLoop, Qt, QTimer, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -195,15 +197,26 @@ class MainWindow(QMainWindow):
         sidebar_layout.setSpacing(0)
 
         # Brand header
-        brand = QLabel("FUNMITE")
+        brand = QLabel()
         brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        brand.setStyleSheet(f"""
-            color: {C.ON_PRIMARY};
-            font-size: {F.SIZE_XL};
-            font-weight: {F.WEIGHT_BOLD};
+        logo_path = Path(__file__).parent / "assets" / "logo.png"
+        if logo_path.exists():
+            pixmap = QPixmap(str(logo_path))
+            pixmap = pixmap.scaled(
+                140, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            )
+            brand.setPixmap(pixmap)
+        else:
+            brand.setText("FUNMITE")
+            brand.setStyleSheet(f"""
+                color: {C.ON_PRIMARY};
+                font-size: {F.SIZE_XL};
+                font-weight: {F.WEIGHT_BOLD};
+                letter-spacing: 3px;
+            """)
+
+        brand.setStyleSheet(brand.styleSheet() + f"""
             padding: 14px 0 10px 0;
-            letter-spacing: 3px;
-            border-bottom: 1px solid {_darken(C.SIDEBAR_BG, -5)};
             background-color: {C.SIDEBAR_BG};
         """)
         sidebar_layout.addWidget(brand)
@@ -215,7 +228,7 @@ class MainWindow(QMainWindow):
             color: {C.SIDEBAR_FG};
             font-size: {F.SIZE_XS};
             font-weight: {F.WEIGHT_MEDIUM};
-            padding: 0 0 8px 0;
+            padding: 0 0 12px 0;
             letter-spacing: 1px;
             border-bottom: 1px solid {_darken(C.SIDEBAR_BG, -5)};
             background-color: {C.SIDEBAR_BG};

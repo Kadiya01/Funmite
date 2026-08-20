@@ -76,10 +76,10 @@ class F:
     FAMILY = '"Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif'
     FAMILY_MONO = '"Cascadia Code", "Consolas", "Courier New", monospace'
 
-    SIZE_XS = "11px"
-    SIZE_SM = "12px"
-    SIZE_BASE = "13px"
-    SIZE_MD = "14px"
+    SIZE_XS = "12px"
+    SIZE_SM = "13px"
+    SIZE_BASE = "14px"
+    SIZE_MD = "15px"
     SIZE_LG = "16px"
     SIZE_XL = "18px"
     SIZE_2XL = "20px"
@@ -141,7 +141,7 @@ def _btn(
     border: str = "none",
     font_size: str = F.SIZE_BASE,
     padding: str = f"{S.MD} {S.XL}",
-    min_height: str = "32px",
+    min_height: str = "44px",
     border_radius: str = S.RADIUS_SM,
 ) -> str:
     h = hover or _darken(bg)
@@ -226,7 +226,7 @@ QPushButton:disabled {{
 
 /* Primary / Accent buttons via objectName */
 QPushButton#btnPrimary, QPushButton[cssClass="primary"] {{
-    {_btn(C.ACCENT, C.ON_ACCENT, C.ACCENT_HOVER, min_height="36px")}
+    {_btn(C.ACCENT, C.ON_ACCENT, C.ACCENT_HOVER, min_height="44px")}
 }}
 QPushButton#btnPrimary:hover, QPushButton[cssClass="primary"]:hover {{
     background-color: {C.ACCENT_HOVER};
@@ -251,7 +251,10 @@ QPushButton#btnSecondary:hover, QPushButton[cssClass="secondary"]:hover {{
 }}
 
 QPushButton#btnSuccess, QPushButton[cssClass="success"] {{
-    {_btn(C.ACCENT, C.ON_ACCENT, C.ACCENT_HOVER, min_height="40px", font_size=F.SIZE_MD)}
+    {_btn(C.ACCENT, C.ON_ACCENT, C.ACCENT_HOVER, min_height="44px", font_size=F.SIZE_MD)}
+}}
+QPushButton:focus {{
+    border: 2px solid {C.FOCUS_RING};
 }}
 
 /* --- Line Edits, Combo Boxes, Spin Boxes, Date Edits --- */
@@ -263,13 +266,13 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QPlainTextEdit {{
     font-size: {F.SIZE_BASE};
     font-family: {F.FAMILY};
     color: {C.FG};
-    min-height: 28px;
+    min-height: 44px;
     selection-background-color: {C.ACCENT_LIGHT};
     selection-color: {C.FG};
 }}
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
 QDateEdit:focus, QPlainTextEdit:focus {{
-    border: 1px solid {C.ACCENT};
+    border: 2px solid {C.FOCUS_RING};
 }}
 
 QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QDateEdit:disabled {{

@@ -336,6 +336,13 @@ class MainWindow(QMainWindow):
 
     def _add_page(self, label: str, page: QWidget) -> None:
         item = QListWidgetItem(label)
+        
+        from PySide6.QtGui import QIcon
+        from pathlib import Path
+        icon_path = Path(__file__).parent / "assets" / "icons" / f"{label.lower()}.svg"
+        if icon_path.exists():
+            item.setIcon(QIcon(str(icon_path)))
+            
         item.setData(Qt.ItemDataRole.UserRole, label)
         item.setSizeHint(QListWidgetItem().sizeHint())
         self.nav.addItem(item)
@@ -343,6 +350,13 @@ class MainWindow(QMainWindow):
 
     def _add_placeholder(self, label: str, message: str) -> None:
         item = QListWidgetItem(label)
+        
+        from PySide6.QtGui import QIcon
+        from pathlib import Path
+        icon_path = Path(__file__).parent / "assets" / "icons" / f"{label.lower()}.svg"
+        if icon_path.exists():
+            item.setIcon(QIcon(str(icon_path)))
+            
         item.setData(Qt.ItemDataRole.UserRole, label)
         self.nav.addItem(item)
         placeholder = QWidget(self)

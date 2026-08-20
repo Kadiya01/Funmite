@@ -52,15 +52,8 @@ def _make_table(columns: list[str]) -> QTableWidget:
     table.setShowGrid(False)
     table.setAlternatingRowColors(True)
     table.verticalHeader().setDefaultSectionSize(40)
-    table.setStyleSheet(
-        f"QTableWidget {{ background-color: {C.CARD}; border: 1px solid {C.BORDER}; "
-        f"border-radius: {S.RADIUS_MD}; gridline-color: transparent; "
-        f"selection-background-color: {C.ACCENT_LIGHT}; font-size: {F.SIZE_SM}; }}"
-        f"QTableWidget::item {{ padding: 4px 8px; color: {C.FG_SECONDARY}; }}"
-        f"QHeaderView::section {{ background-color: {C.MUTED}; color: {C.FG_SECONDARY}; "
-        f"border: none; border-bottom: 1px solid {C.BORDER}; padding: 6px 8px; "
-        f"font-size: {F.SIZE_SM}; font-weight: {F.WEIGHT_SEMIBOLD}; }}"
-    )
+    table.verticalHeader().setDefaultSectionSize(40)
+    
     header = table.horizontalHeader()
     header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

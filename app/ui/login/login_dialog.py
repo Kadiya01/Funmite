@@ -54,64 +54,94 @@ class LoginDialog(QDialog):
         super().__init__(parent)
         self._authenticator = authenticator
         self.current_user: CurrentUser | None = None
-        self.setStyleSheet(_DIALOG_QSS)
+        self.setStyleSheet(f"QDialog {{ background-color: {C.CARD}; }}")
 
         self.setWindowTitle("Funmite POS — Login")
         self.setModal(True)
-        self.setMinimumWidth(400)
-        self.setMinimumHeight(480)
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(500)
 
-        # Outer centered layout
-        outer = QVBoxLayout(self)
+        # Outer layout: Horizontal split
+        outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        outer.setSpacing(0)
 
-        # Card container
-        card = QFrame()
-        card.setMaximumWidth(360)
-        card.setStyleSheet(f"""
-            QFrame {{
-                background-color: {C.CARD};
-                border: 1px solid {C.BORDER};
-                border-radius: {S.RADIUS_LG};
-                padding: 32px 28px;
-            }}
-        """)
-        card_layout = QVBoxLayout(card)
-        card_layout.setSpacing(0)
-        card_layout.setContentsMargins(0, 0, 0, 0)
-
-        # --- Brand ---
-        brand = QLabel(SHOP_TITLE)
+        # --- Left Pane (Brand) ---
+        left_pane = QFrame()
+        left_pane.setStyleSheet(f"background-color: {C.PRIMARY_DARK};")
+        left_layout = QVBoxLayout(left_pane)
+        left_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        brand = QLabel()
         brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        brand.setStyleSheet(f"""
-            color: {C.PRIMARY};
-            font-size: 28px;
-            font-weight: {F.WEIGHT_BOLD};
-            padding: 0;
-            background: transparent;
-            letter-spacing: 4px;
-        """)
-        card_layout.addWidget(brand)
+        
+        from PySide6.QtGui import QPixmap
+        from pathlib import Path
+        logo_path = Path(__file__).parent.parent.parent / "assets" / "logo.png"
+        
+        if logo_path.exists():
+            pixmap = QPixmap(str(logo_path))
+            pixmap = pixmap.scaled(
+                220, 140, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            )
+            brand.setPixmap(pixmap)
+        else:
+            brand.setText(SHOP_TITLE)
+            brand.setStyleSheet(f"""
+                color: {C.ON_PRIMARY};
+                font-size: 36px;
+                font-weight: {F.WEIGHT_BOLD};
+                padding: 0;
+                background: transparent;
+                letter-spacing: 4px;
+            """)
+        
+        left_layout.addWidget(brand)
+        left_layout.addSpacing(16)
 
         subtitle = QLabel(SHOP_SUBTITLE)
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet(f"""
-            color: {C.MUTED_FG};
-            font-size: {F.SIZE_SM};
+            color: {C.SIDEBAR_FG};
+            font-size: {F.SIZE_MD};
             font-weight: {F.WEIGHT_MEDIUM};
-            padding: 2px 0 24px 0;
             background: transparent;
             letter-spacing: 2px;
         """)
-        card_layout.addWidget(subtitle)
+        left_layout.addWidget(subtitle)
 
-        # --- Divider ---
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet(f"background-color: {C.BORDER}; max-height: 1px; border: none;")
-        card_layout.addWidget(divider)
-        card_layout.addSpacing(24)
+        # --- Right Pane (Form) ---
+        right_pane = QFrame()
+        right_pane.setStyleSheet(f"background-color: {C.CARD};")
+        right_layout = QVBoxLayout(right_pane)
+        right_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        right_layout.setContentsMargins(60, 40, 60, 40)
+        
+        # Form Container
+        form_container = QFrame()
+        form_container.setMaximumWidth(320)
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setSpacing(0)
+        form_layout.setContentsMargins(0, 0, 0, 0)
+        
+        form_title = QLabel("Welcome Back")
+        form_title.setStyleSheet(f"""
+            color: {C.PRIMARY};
+            font-size: {F.SIZE_3XL};
+            font-weight: {F.WEIGHT_BOLD};
+            background: transparent;
+            margin-bottom: 4px;
+        """)
+        form_layout.addWidget(form_title)
+        
+        form_subtitle = QLabel("Please sign in to continue")
+        form_subtitle.setStyleSheet(f"""
+            color: {C.MUTED_FG};
+            font-size: {F.SIZE_MD};
+            background: transparent;
+            margin-bottom: 32px;
+        """)
+        form_layout.addWidget(form_subtitle)
 
         # --- Username ---
         username_label = QLabel("Username")
@@ -119,16 +149,16 @@ class LoginDialog(QDialog):
             color: {C.FG_SECONDARY};
             font-size: {F.SIZE_SM};
             font-weight: {F.WEIGHT_MEDIUM};
-            padding: 0 0 4px 0;
+            padding: 0 0 6px 0;
             background: transparent;
         """)
-        card_layout.addWidget(username_label)
+        form_layout.addWidget(username_label)
 
         self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Enter username")
-        self.username_input.setMinimumHeight(40)
-        card_layout.addWidget(self.username_input)
-        card_layout.addSpacing(16)
+        self.username_input.setPlaceholderText("Enter your username")
+        self.username_input.setMinimumHeight(44)
+        form_layout.addWidget(self.username_input)
+        form_layout.addSpacing(20)
 
         # --- Password ---
         password_label = QLabel("Password")
@@ -136,20 +166,20 @@ class LoginDialog(QDialog):
             color: {C.FG_SECONDARY};
             font-size: {F.SIZE_SM};
             font-weight: {F.WEIGHT_MEDIUM};
-            padding: 0 0 4px 0;
+            padding: 0 0 6px 0;
             background: transparent;
         """)
-        card_layout.addWidget(password_label)
+        form_layout.addWidget(password_label)
 
         self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Enter password")
+        self.password_input.setPlaceholderText("Enter your password")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setMinimumHeight(40)
-        card_layout.addWidget(self.password_input)
-        card_layout.addSpacing(24)
+        self.password_input.setMinimumHeight(44)
+        form_layout.addWidget(self.password_input)
+        form_layout.addSpacing(32)
 
         # --- Login Button ---
-        self.login_button = QPushButton("LOGIN")
+        self.login_button = QPushButton("Sign In")
         self.login_button.setObjectName("btnPrimary")
         self.login_button.setDefault(True)
         self.login_button.setMinimumHeight(44)
@@ -158,11 +188,9 @@ class LoginDialog(QDialog):
                 background-color: {C.ACCENT};
                 color: {C.ON_ACCENT};
                 border: none;
-                border-radius: {S.RADIUS_SM};
-                padding: 10px 16px;
+                border-radius: {S.RADIUS_MD};
                 font-size: {F.SIZE_MD};
                 font-weight: {F.WEIGHT_SEMIBOLD};
-                min-height: 22px;
                 letter-spacing: 1px;
             }}
             QPushButton:hover {{
@@ -176,8 +204,8 @@ class LoginDialog(QDialog):
                 color: {C.MUTED_FG};
             }}
         """)
-        card_layout.addWidget(self.login_button)
-        card_layout.addSpacing(12)
+        form_layout.addWidget(self.login_button)
+        form_layout.addSpacing(16)
 
         # --- Error ---
         self.error_label = QLabel("")
@@ -185,25 +213,28 @@ class LoginDialog(QDialog):
             color: {C.DESTRUCTIVE};
             background-color: {C.DESTRUCTIVE_LIGHT};
             border-radius: {S.RADIUS_SM};
-            padding: 8px 12px;
+            padding: 10px 12px;
             font-size: {F.SIZE_SM};
         """)
         self.error_label.setWordWrap(True)
         self.error_label.setVisible(False)
-        card_layout.addWidget(self.error_label)
-        card_layout.addSpacing(8)
+        form_layout.addWidget(self.error_label)
+        form_layout.addSpacing(8)
 
         # --- Hint ---
         hint = QLabel(OFFLINE_HINT)
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint.setStyleSheet(f"""
             color: {C.MUTED_FG};
-            font-size: {F.SIZE_XS};
+            font-size: {F.SIZE_SM};
             background: transparent;
         """)
-        card_layout.addWidget(hint)
+        form_layout.addWidget(hint)
 
-        outer.addWidget(card, alignment=Qt.AlignmentFlag.AlignCenter)
+        right_layout.addWidget(form_container)
+
+        outer.addWidget(left_pane, 1)
+        outer.addWidget(right_pane, 1)
 
         # --- Connections ---
         self.login_button.clicked.connect(self._submit)

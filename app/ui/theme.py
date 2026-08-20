@@ -321,9 +321,9 @@ QDateEdit::drop-down {{
 /* --- Tables --- */
 QTableWidget, QTableView {{
     background-color: {C.CARD};
-    border: 1px solid {C.BORDER};
+    border: 1px solid {C.BORDER_LIGHT};
     border-radius: {S.RADIUS_MD};
-    gridline-color: {C.BORDER_LIGHT};
+    gridline-color: transparent;
     selection-background-color: {C.TABLE_SELECTION};
     selection-color: {C.FG};
     font-size: {F.SIZE_BASE};
@@ -331,9 +331,9 @@ QTableWidget, QTableView {{
     alternate-background-color: {C.TABLE_ALT_ROW};
 }}
 QTableWidget::item, QTableView::item {{
-    padding: 6px 10px;
+    padding: 8px 12px;
     border-bottom: 1px solid {C.BORDER_LIGHT};
-    min-height: 32px;
+    min-height: 40px;
 }}
 QTableWidget::item:selected, QTableView::item:selected {{
     background-color: {C.TABLE_SELECTION};
@@ -341,27 +341,23 @@ QTableWidget::item:selected, QTableView::item:selected {{
 }}
 
 QHeaderView::section {{
-    background-color: {C.TABLE_HEADER_BG};
-    color: {C.TABLE_HEADER_FG};
+    background-color: {C.TABLE_ALT_ROW};
+    color: {C.PRIMARY};
     border: none;
-    border-right: 1px solid {_darken(C.PRIMARY, 10)};
-    border-bottom: 2px solid {C.PRIMARY_DARK};
-    padding: 8px 10px;
+    border-bottom: 1px solid {C.BORDER};
+    padding: 12px 12px;
     font-size: {F.SIZE_SM};
-    font-weight: {F.WEIGHT_SEMIBOLD};
+    font-weight: {F.WEIGHT_BOLD};
     text-transform: uppercase;
-    min-height: 20px;
-}}
-QHeaderView::section:last {{
-    border-right: none;
+    min-height: 24px;
 }}
 QHeaderView::section:hover {{
-    background-color: {_darken(C.PRIMARY, 5)};
+    background-color: {C.BORDER_LIGHT};
 }}
 
 /* --- Tabs --- */
 QTabWidget::pane {{
-    border: 1px solid {C.BORDER};
+    border: 1px solid {C.BORDER_LIGHT};
     border-radius: 0 0 {S.RADIUS_MD} {S.RADIUS_MD};
     background-color: {C.CARD};
     top: -1px;
@@ -369,10 +365,10 @@ QTabWidget::pane {{
 QTabBar::tab {{
     background-color: {C.MUTED};
     color: {C.MUTED_FG};
-    border: 1px solid {C.BORDER};
+    border: 1px solid {C.BORDER_LIGHT};
     border-bottom: none;
     border-radius: {S.RADIUS_SM} {S.RADIUS_SM} 0 0;
-    padding: 6px 12px;
+    padding: 10px 16px;
     font-size: {F.SIZE_SM};
     font-weight: {F.WEIGHT_MEDIUM};
     margin-right: 2px;
@@ -391,25 +387,21 @@ QTabBar::tab:hover:!selected {{
 /* --- Group Box --- */
 QGroupBox {{
     background-color: {C.CARD};
-    border: 1px solid {C.BORDER};
-    border-radius: {S.RADIUS_MD};
-    margin-top: 16px;
-    padding: 16px 12px 12px 12px;
-    font-size: {F.SIZE_BASE};
-    font-weight: {F.WEIGHT_SEMIBOLD};
-    color: {C.FG_SECONDARY};
+    border: 1px solid {C.BORDER_LIGHT};
+    border-radius: {S.RADIUS_LG};
+    margin-top: 0px;
+    padding: 48px 16px 16px 16px;
 }}
 QGroupBox::title {{
-    subcontrol-origin: margin;
+    subcontrol-origin: padding;
     subcontrol-position: top left;
-    left: 12px;
-    top: 4px;
-    padding: 0 6px;
-    background-color: {C.CARD};
-    color: {C.FG_SECONDARY};
-    font-size: {F.SIZE_SM};
-    font-weight: {F.WEIGHT_SEMIBOLD};
-    text-transform: uppercase;
+    left: 16px;
+    top: 16px;
+    padding: 0;
+    background-color: transparent;
+    color: {C.PRIMARY_DARK};
+    font-size: {F.SIZE_MD};
+    font-weight: {F.WEIGHT_BOLD};
     letter-spacing: 0.5px;
 }}
 

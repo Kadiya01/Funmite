@@ -62,11 +62,20 @@ class _KPICard(QFrame):
         self.setStyleSheet(f"""
             QFrame#kpiCard {{
                 background-color: {C.CARD};
-                border: 1px solid {C.BORDER};
+                border: 1px solid {C.BORDER_LIGHT};
                 border-radius: {S.RADIUS_MD};
                 border-top: 3px solid {accent};
             }}
         """)
+        
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
+        from PySide6.QtGui import QColor
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(15)
+        shadow.setXOffset(0)
+        shadow.setYOffset(2)
+        shadow.setColor(QColor(0, 0, 0, 10))
+        self.setGraphicsEffect(shadow)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 14)
         layout.setSpacing(4)
@@ -107,100 +116,115 @@ class DashboardPage(QWidget):
         self._low_stock: list[Product] = []
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(24)
 
         # --- Title row ---
         title_row = QHBoxLayout()
         title_row.setSpacing(12)
-        title = QLabel("Dashboard", self)
+        title = QLabel("Dashboard overview", self)
         title.setStyleSheet(f"""
-            font-size: {F.SIZE_2XL};
+            font-size: {F.SIZE_3XL};
             font-weight: {F.WEIGHT_BOLD};
             color: {C.FG};
+            letter-spacing: -0.5px;
         """)
         title_row.addWidget(title)
         title_row.addStretch(1)
 
-        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button = QPushButton("Refresh Data")
         self.refresh_button.setObjectName("btnSecondary")
         self.refresh_button.clicked.connect(self.refresh)
         title_row.addWidget(self.refresh_button)
         layout.addLayout(title_row)
 
-        # --- Today KPI section ---
-        self._today_group = QGroupBox("TODAY")
-        today_layout = QVBoxLayout(self._today_group)
-        today_layout.setSpacing(16)
-        today_layout.setContentsMargins(16, 20, 16, 16)
-
+        # --- Today KPI Grid ---
         kpi_grid = QGridLayout()
-        kpi_grid.setSpacing(12)
+        kpi_grid.setSpacing(16)
 
-        self.kpi_sales = _KPICard("SALES", C.ACCENT)
+        self.kpi_sales = _KPICard("TOTAL SALES (TODAY)", C.ACCENT)
         self.kpi_gross_profit = _KPICard("GROSS PROFIT", C.ACCENT)
-        self.kpi_net_profit = _KPICard("NET PROFIT", C.ACCENT)
+        self.kpi_net_profit = _KPICard("NET PROFIT", C.SUCCESS)
         self.kpi_transactions = _KPICard("TRANSACTIONS", C.PRIMARY)
+        self.kpi_pos = _KPICard("BANK POS", "#0369A1")
+        self.kpi_transfer = _KPICard("BANK TRANSFER", "#7C3AED")
 
         kpi_grid.addWidget(self.kpi_sales, 0, 0)
         kpi_grid.addWidget(self.kpi_gross_profit, 0, 1)
         kpi_grid.addWidget(self.kpi_net_profit, 0, 2)
         kpi_grid.addWidget(self.kpi_transactions, 0, 3)
+        kpi_grid.addWidget(self.kpi_pos, 1, 0, 1, 2)
+        kpi_grid.addWidget(self.kpi_transfer, 1, 2, 1, 2)
+        
         for col in range(4):
             kpi_grid.setColumnStretch(col, 1)
-        today_layout.addLayout(kpi_grid)
+            
+        layout.addLayout(kpi_grid)
 
-        # Payment breakdown row
-        payment_row = QHBoxLayout()
-        payment_row.setSpacing(12)
+        # --- Low Stock Card ---
+        self.low_stock_card = QFrame()
+        self.low_stock_card.setStyleSheet(f"""
+            QFrame {{
+                background-color: {C.CARD};
+                border: 1px solid {C.BORDER_LIGHT};
+                border-radius: {S.RADIUS_LG};
+            }}
+        """)
+        
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
+        from PySide6.QtGui import QColor
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setXOffset(0)
+        shadow.setYOffset(4)
+        shadow.setColor(QColor(0, 0, 0, 10))
+        self.low_stock_card.setGraphicsEffect(shadow)
+        
+        card_layout = QVBoxLayout(self.low_stock_card)
+        card_layout.setSpacing(16)
+        card_layout.setContentsMargins(24, 24, 24, 24)
 
-        self.kpi_pos = _KPICard("BANK POS", "#0369A1")
-        self.kpi_transfer = _KPICard("BANK TRANSFER", "#7C3AED")
-
-        payment_row.addWidget(self.kpi_pos, 1)
-        payment_row.addWidget(self.kpi_transfer, 1)
-        today_layout.addLayout(payment_row)
-
-        layout.addWidget(self._today_group)
-
-        # --- Low Stock section ---
-        self.low_stock_group = QGroupBox(f"Low Stock (\u2264 {LOW_STOCK_THRESHOLD})")
-        group_layout = QVBoxLayout(self.low_stock_group)
-        group_layout.setSpacing(12)
-        group_layout.setContentsMargins(16, 20, 16, 16)
-
-        self.summary_label = QLabel("", self.low_stock_group)
+        header_row = QHBoxLayout()
+        header_title = QLabel("Inventory Alerts")
+        header_title.setStyleSheet(f"""
+            font-size: {F.SIZE_LG};
+            font-weight: {F.WEIGHT_BOLD};
+            color: {C.PRIMARY_DARK};
+            background: transparent;
+        """)
+        header_row.addWidget(header_title)
+        
+        self.summary_label = QLabel("", self.low_stock_card)
         self.summary_label.setStyleSheet(f"""
             font-size: {F.SIZE_SM};
             color: {C.MUTED_FG};
-            padding: 4px 0;
             background: transparent;
         """)
-        group_layout.addWidget(self.summary_label)
+        header_row.addWidget(self.summary_label)
+        header_row.addStretch(1)
+        
+        self.view_stock_button = QPushButton("Manage Inventory")
+        self.view_stock_button.setObjectName("btnSecondary")
+        self.view_stock_button.clicked.connect(self.view_stock_requested.emit)
+        header_row.addWidget(self.view_stock_button)
+        
+        card_layout.addLayout(header_row)
 
-        self.table = QTableWidget(0, 4, self.low_stock_group)
-        self.table.setHorizontalHeaderLabels(["Product", "Current", "Min", "Status"])
+        self.table = QTableWidget(0, 4, self.low_stock_card)
+        self.table.setHorizontalHeaderLabels(["Product", "Current Stock", "Min Required", "Status"])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)
-        self.table.verticalHeader().setDefaultSectionSize(40)
+        self.table.verticalHeader().setDefaultSectionSize(48)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        group_layout.addWidget(self.table, 1)
+        card_layout.addWidget(self.table, 1)
 
-        btn_row = QHBoxLayout()
-        btn_row.addStretch(1)
-        self.view_stock_button = QPushButton("View Stock", self.low_stock_group)
-        self.view_stock_button.setObjectName("btnPrimary")
-        self.view_stock_button.clicked.connect(self.view_stock_requested.emit)
-        btn_row.addWidget(self.view_stock_button)
-        group_layout.addLayout(btn_row)
-
-        layout.addWidget(self.low_stock_group, 1)
+        layout.addWidget(self.low_stock_card, 1)
 
         self.refresh()
 

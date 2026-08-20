@@ -19,6 +19,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
@@ -150,19 +151,56 @@ class PosPage(QWidget):
         self.last_receipt = None
         self.setStyleSheet(_POS_PAGE_QSS)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(10)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(16, 12, 16, 12)
+        main_layout.setSpacing(12)
 
-        self._build_title_row(layout)
-        self._build_scan_row(layout)
-        self._build_search_row(layout)
-        self._build_cart(layout)
-        self._build_customer_row(layout)
-        self._build_discount_row(layout)
-        self._build_summary(layout)
-        self._build_payment_row(layout)
-        self._build_complete_row(layout)
+        self._build_title_row(main_layout)
+        
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(16)
+        
+        # --- Left Panel (Input / Setup) ---
+        left_panel = QFrame()
+        left_panel.setStyleSheet(f"""
+            QFrame {{
+                background-color: {C.CARD};
+                border: 1px solid {C.BORDER_LIGHT};
+                border-radius: {S.RADIUS_LG};
+            }}
+        """)
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(20, 20, 20, 20)
+        left_layout.setSpacing(24)
+        
+        self._build_scan_row(left_layout)
+        self._build_search_row(left_layout)
+        self._build_customer_row(left_layout)
+        self._build_discount_row(left_layout)
+        left_layout.addStretch(1)
+        
+        content_layout.addWidget(left_panel, 1)
+
+        # --- Right Panel (Cart / Checkout) ---
+        right_panel = QFrame()
+        right_panel.setStyleSheet(f"""
+            QFrame {{
+                background-color: {C.CARD};
+                border: 1px solid {C.BORDER_LIGHT};
+                border-radius: {S.RADIUS_LG};
+            }}
+        """)
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(20, 20, 20, 20)
+        right_layout.setSpacing(16)
+        
+        self._build_cart(right_layout)
+        self._build_summary(right_layout)
+        self._build_payment_row(right_layout)
+        self._build_complete_row(right_layout)
+        
+        content_layout.addWidget(right_panel, 1)
+        main_layout.addLayout(content_layout)
 
         self._reload_customers()
         self._rebuild_cart()

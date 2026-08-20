@@ -24,7 +24,18 @@ All notable changes to this project are documented here.
 - Created `UAT_CHECKLIST.md` — 92-item client acceptance testing checklist
   covering all features: login, products, customers, POS, receipts, inventory,
   purchases, expenses, exchanges, reports, dashboard, backup, sync, offline.
-- All 657 tests passing (0 failures).
+- Fixed logout to return to login dialog instead of exiting the application.
+  Replaced `self.app.exec()` with local `QEventLoop` in `AppController._show()`.
+  On logout, only the local loop is quit, so the login dialog reappears.
+- Created `docs/PRODUCTION_CONFIGURATION.md` — configuration guide for production
+  deployment.
+- Created `docs/ADMIN_USER_MANUAL.md` — comprehensive admin user manual.
+- Created `docs/CASHIER_QUICK_GUIDE.md` — quick reference guide for cashiers.
+- Created `docs/DEPLOYMENT_GUIDE.md` — step-by-step deployment instructions.
+- Created `docs/TROUBLESHOOTING.md` — troubleshooting guide with 13 common issues.
+- Created `docs/PHASE11_FINAL_REPORT.md` — Phase 11 completion report with
+  readiness classification: READY FOR CLIENT UAT.
+- All 657 tests passing (0 failures, 0 flaky).
 - Version bumped to 1.2.0.
 
 ## [1.1.0] — Phase 10 Hybrid Offline-First Cloud Sync

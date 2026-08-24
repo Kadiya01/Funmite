@@ -63,7 +63,7 @@ decision does not block the phase.
   aggregation point. Remote owner access is read-only via cloud DB queries. No
   web UI — the cloud API provides push/pull endpoints for device sync. Phase 10
   implemented this.
-- **Customer without phone** — the approved schema makes `customers.phone` nullable;
+- **Customer without phone** -- RESOLVED: `customers.phone` is nullable with no uniqueness constraint. Customers without phone numbers work correctly. Walk-in customers created by Cashier can omit phone. Implemented in Phase 03.
   Artifact `01` notes blank/unknown phones must not create duplicate-key problems.
   Phase 03 implemented a customer without a phone (nullable, no uniqueness), matching
   the approved schema. Confirmation pending.
@@ -95,12 +95,6 @@ decision does not block the phase.
   with `ValidationError` and records it here. The settlement method (cash refund,
   credit toward a future sale, bank transfer back) must be confirmed. Until then,
   exchanges where the customer is owed money are blocked.
-- **Multi-item exchange rules** — Phase 06 validates each line independently (the
-  product was sold on this sale, the quantity does not exceed the remaining
-  un-exchanged quantity, no duplicate return lines, no duplicate replacement
-  lines). Whether a single exchange must involve exactly one return/replacement or
-  can span multiple mixed lines with mixed settlement (some customer pays, some
-  shop pays) is not yet confirmed.
 - **Exchange receipt printing** — whether a separate exchange receipt or an addendum
   to the original sale receipt should be printed. Phase 06 does not print anything;
   confirm before production.
@@ -110,26 +104,6 @@ decision does not block the phase.
 
 ## Added during Phase 05
 
-- **Receipt number format** — the wireframe layout shows a receipt/transaction
-  number but no exact prefix. Phase 05 implemented the candidate
-  `FUN-<YYYYMMDD>-<NNN>` (e.g. `FUN-20260116-001`), a daily sequence computed
-  with `SaleRepository.max_receipt_sequence`; the database `UNIQUE` constraint
-  on `sales.receipt_no` is the final guard and a collision rolls the sale back.
-  The prefix, date layout and digit count are all localized in
-  `app/domain/services/sale_service.py` (`RECEIPT_PREFIX`,
-  `RECEIPT_SEQUENCE_DIGITS`). Confirm before production.
-- **Receipt branding / header / footer** — the receipt header (shop name,
-  address, phone) and footer/tagline text come from the approved wireframe and
-  are configurable defaults in `ReceiptBuilder` (`SHOP_NAME`, `SHOP_ADDRESS`,
-  `SHOP_PHONE`, `RECEIPT_FOOTER`, `RECEIPT_TAGLINE`). Confirm the final text and
-  layout before mass-printing.
-- **Receipt barcode content** — the receipt barcode encodes the receipt number
-  exactly (rendered as Code128). This matches the wireframe candidate; confirm
-  whether any other identifier should be encoded.
-- **Discount applied at the till** — Admin-only discount is confirmed
-  (approved matrix: "Discount" is Admin-only). Phase 05 implemented `PERCENT`
-  and `FIXED` with no ceiling beyond "cannot make the total negative". Any
-  required maximums/per-user limits must be confirmed.
 - **Payment reference field** — the technical architecture asks which reference
   number is recorded for POS/Transfer transactions. Phase 05 added an optional
   free-text "Reference" field stored on `payments.reference`. Confirm whether a
@@ -137,11 +111,7 @@ decision does not block the phase.
 - **Cashier reprint rights** — UC-06 "Reprint Receipt" has no dedicated
   capability in the matrix, so Phase 05 gates reprint to Admin via the closest
   capability, `CAP_VIEW_REPORTS`. Confirm whether the Cashier may reprint.
-- **Cashier creates walk-in customers** — the approved matrix does not list
-  customer-record management for the Cashier, but a sale requires a customer.
-  Phase 05 added `CustomerService.create_for_sale` (name required, phone
-  optional) gated by the Cashier's own `CAP_MAKE_SALE`, while full customer
-  management stays Admin-only. Confirm the cashier may register minimal
+- **Cashier creates walk-in customers** -- RESOLVED: Cashier can create minimal walk-in customers at the till via `CustomerService.create_for_sale` (name required, phone optional) gated by `CAP_MAKE_SALE`. Full customer management stays Admin-only. Implemented in Phase 05.
   customers at the till.
 - **Low-stock note after a sale** -- RESOLVED: Scoped to the sale own items only. Implemented in Phase 05.
 - **ESC/POS naira rendering** — PC437 (thermal printers) has no naira glyph, so
@@ -152,15 +122,8 @@ decision does not block the phase.
 ## Added during Phase 04
 
 - **Inventory management permission** -- RESOLVED: Admin-only for stock operations and history viewing. Implemented in Phase 04.
-- **Stock-in without a purchase record** — the Phase 04 stock-in adds quantity
-  and logs a `STOCK_IN` movement without creating a purchase (purchases and
-  suppliers are Phase 07). When Phase 07 records purchases, the purchase-linked
-  stock increase is expected to flow through the same inventory service.
-  Confirm if stock-in should be restricted to purchase-linked movements later.
-- **Low-stock popup scope** — Phase 04 raises the popup after Admin stock
-  operations. Phase 05 sales will trigger the same popup when a sale leaves a
-  product at `quantity <= 3`; the popup already lives in a reusable widget for
-  that purpose.
+- **Stock-in without a purchase record** -- RESOLVED: Both standalone stock-in (Phase 04) and purchase-linked stock-in (Phase 07) flow through the same `InventoryService.change_stock` writer with `reference_type=STOCK_IN`. All stock movements are auditable via `inventory_logs`. No restriction needed.
+- **Low-stock popup scope** -- RESOLVED: Popup triggered after Admin stock operations AND after sales that leave a product at or below `LOW_STOCK_THRESHOLD`. Uses reusable `show_low_stock_alert` widget. Implemented in Phases 04-05.
 
 ## Added during Phase 03
 

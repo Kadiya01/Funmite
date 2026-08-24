@@ -519,8 +519,11 @@ titles, empty states, consistent tokens, visual cleanup.
 | Final report list | Phase 08 (reports) | Partially — core reports implemented; export/print format unconfirmed |
 | Customer-record management permission | Phase 03 (customers) | RESOLVED - Admin-only + cashier walk-in |
 | Inventory management permission (stock/history viewing) | Phase 04 (inventory) | RESOLVED - Admin-only |
+| Customer without phone | Phase 03 (customers) | RESOLVED - nullable phone, no uniqueness constraint |
 | Receipt branding/header/footer text | Phase 05 (receipts) | RESOLVED - wireframe candidate defaults in ReceiptBuilder |
 | Low-stock note shown after a sale | Phase 05 (POS) | RESOLVED - scoped to sale items only |
+| Stock-in without purchase record | Phase 04 (inventory) | RESOLVED - both standalone and purchase-linked flow through InventoryService |
+| Low-stock popup scope | Phase 04 (inventory) | RESOLVED - triggered after stock ops and sales below threshold |
 | ESC/POS naira rendering (₦ → `N`) | Phase 11 (printer) | Yes — `N` used until then |
 
 Details and rationale in `OPEN_DECISIONS.md`.

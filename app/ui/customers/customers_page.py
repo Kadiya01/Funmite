@@ -21,7 +21,7 @@ from app.data.repositories.customer_repository import CustomerRepository
 from app.domain.services.customer_service import CustomerService
 from app.domain.session import CurrentUser
 from app.ui.customers.customer_form import CustomerFormDialog
-from app.ui.theme import C, F, S
+from app.ui.theme import C, F, S, empty_state_message
 
 
 class CustomersPage(QWidget):
@@ -36,6 +36,14 @@ class CustomersPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
+
+        title = QLabel("Customers", self)
+        title.setStyleSheet(f"font-size: {F.SIZE_2XL}; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
+        layout.addWidget(title)
+
+        subtitle = QLabel("Manage customer records", self)
+        subtitle.setStyleSheet(f"font-size: {F.SIZE_SM}; color: {C.MUTED_FG}; margin-bottom: 8px;")
+        layout.addWidget(subtitle)
 
         toolbar = QHBoxLayout()
         self.add_button = QPushButton("+ Add Customer")
@@ -64,6 +72,12 @@ class CustomersPage(QWidget):
         self.table.doubleClicked.connect(lambda _: self.edit_selected())
         layout.addWidget(self.table, 1)
 
+        self.empty_label = QLabel("No customers found. Add your first customer.", self)
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet(empty_state_message(""))
+        self.empty_label.setVisible(False)
+        layout.addWidget(self.empty_label)
+
         self.count_label = QLabel("")
         self.count_label.setStyleSheet(f"color: {C.MUTED_FG}; font-size: {F.SIZE_SM};")
         layout.addWidget(self.count_label)
@@ -87,6 +101,7 @@ class CustomersPage(QWidget):
                 self.table.setItem(row, column, QTableWidgetItem(value))
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, customer.id)
         self.count_label.setText(f"{len(customers)} customer(s)")
+        self.empty_label.setVisible(len(customers) == 0)
 
     def _selected(self):
         by_id = {customer.id: customer for customer in self._customers}

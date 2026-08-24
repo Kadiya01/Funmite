@@ -113,7 +113,7 @@ class PurchaseFormDialog(QDialog):
         button_row = QHBoxLayout()
         self.complete_button = QPushButton("Complete Purchase")
         self.complete_button.setObjectName("btnSuccess")
-        self.complete_button.setMinimumHeight(42)
+        self.complete_button.setMinimumHeight(44)
         button_row.addWidget(self.complete_button)
         cancel_button = QPushButton("Cancel")
         cancel_button.setObjectName("btnSecondary")

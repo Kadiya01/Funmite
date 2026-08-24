@@ -63,16 +63,10 @@ from app.ui.pos.popups import (
 from app.ui.pos.quick_customer import QuickCustomerDialog
 from app.ui.exchanges.exchange_dialog import ExchangeDialog
 from app.ui.widgets import BarcodeScanInput
-from app.ui.theme import C, F, S
+from app.ui.theme import C, F, S, darken, empty_state_message
 from app.utils.formatting import format_money
 
 OFFLINE_STATUS = "● OFFLINE — WORKING LOCALLY"
-
-
-def _darken(hex_color: str, amount: int = 15) -> str:
-    h = hex_color.lstrip("#")
-    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
-    return f"#{max(0, r - amount):02x}{max(0, g - amount):02x}{max(0, b - amount):02x}"
 
 _POS_PAGE_QSS = f"""
 QPushButton[checkable="true"] {{
@@ -302,6 +296,12 @@ class PosPage(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.cart_table, 1)
 
+        self.cart_empty = QLabel("No items in cart. Scan a barcode or search to add products.", self)
+        self.cart_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cart_empty.setStyleSheet(empty_state_message(""))
+        self.cart_empty.setVisible(True)
+        layout.addWidget(self.cart_empty)
+
     def _build_customer_row(self, layout: QVBoxLayout) -> None:
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -431,7 +431,7 @@ class PosPage(QWidget):
                 background-color: {C.ACCENT_HOVER};
             }}
             QPushButton:pressed {{
-                background-color: {_darken(C.ACCENT, 20)};
+                background-color: {darken(C.ACCENT, 20)};
             }}
             QPushButton:disabled {{
                 background-color: {C.MUTED};
@@ -536,6 +536,7 @@ class PosPage(QWidget):
 
     def _rebuild_cart(self) -> None:
         self.cart_table.setRowCount(0)
+        self.cart_empty.setVisible(len(self._cart) == 0)
         for row, line in enumerate(self._cart):
             self.cart_table.insertRow(row)
 

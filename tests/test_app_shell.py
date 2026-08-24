@@ -25,7 +25,7 @@ def test_main_window_creates(qtbot):
     qtbot.addWidget(window)
     assert window.windowTitle() == APP_TITLE
     assert window.isVisible() is False
-    assert f"version {__version__}" in window.statusBar().currentMessage()
+    assert f"v{__version__}" in window.statusBar().currentMessage()
 
 
 def test_main_window_shows_current_user_and_logout(qtbot):
@@ -39,8 +39,8 @@ def test_main_window_shows_current_user_and_logout(qtbot):
     qtbot.addWidget(window)
 
     status = window.statusBar().currentMessage()
-    assert "Admin: Jamilu" in status
-    assert f"version {__version__}" in status
+    assert "Admin \u2022 Jamilu" in status
+    assert f"v{__version__}" in status
 
     buttons = [b for b in window.findChildren(QPushButton) if b.text() == "Log out"]
     assert len(buttons) == 1

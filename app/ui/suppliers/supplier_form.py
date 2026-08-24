@@ -60,7 +60,7 @@ class SupplierFormDialog(QDialog):
         self.save_button = QPushButton("Save")
         self.save_button.setObjectName("btnPrimary")
         self.save_button.setDefault(True)
-        self.save_button.setMinimumHeight(40)
+        self.save_button.setMinimumHeight(44)
         layout.addWidget(self.save_button)
 
         cancel_button = QPushButton("Cancel")

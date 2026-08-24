@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.ui.theme import C, F, S
+from app.ui.theme import C, F, S, empty_state_message
 from app.data.db import session_scope
 from app.domain.services.expense_service import ExpenseService
 from app.domain.session import CurrentUser
@@ -36,6 +36,14 @@ class ExpensesPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
+
+        title = QLabel("Expenses", self)
+        title.setStyleSheet(f"font-size: {F.SIZE_2XL}; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
+        layout.addWidget(title)
+
+        subtitle = QLabel("Record and track business expenses", self)
+        subtitle.setStyleSheet(f"font-size: {F.SIZE_SM}; color: {C.MUTED_FG}; margin-bottom: 8px;")
+        layout.addWidget(subtitle)
 
         toolbar = QHBoxLayout()
         self.add_button = QPushButton("+ Record Expense")
@@ -62,6 +70,12 @@ class ExpensesPage(QWidget):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.doubleClicked.connect(lambda _: self.edit_selected())
         layout.addWidget(self.table, 1)
+
+        self.empty_label = QLabel("No expenses found. Record your first expense.", self)
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet(empty_state_message(""))
+        self.empty_label.setVisible(False)
+        layout.addWidget(self.empty_label)
 
         self.count_label = QLabel("")
         self.count_label.setStyleSheet(f"color: {C.MUTED_FG};")
@@ -95,6 +109,7 @@ class ExpensesPage(QWidget):
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, expense.id)
             total += expense.amount
         self.count_label.setText(f"{len(expenses)} expense(s) — Total: {format_money(total)}")
+        self.empty_label.setVisible(len(expenses) == 0)
 
     def _selected(self):
         by_id = {e.id: e for e in self._expenses}

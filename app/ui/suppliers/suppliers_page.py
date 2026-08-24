@@ -21,7 +21,7 @@ from app.data.repositories.supplier_repository import SupplierRepository
 from app.domain.services.supplier_service import SupplierService
 from app.domain.session import CurrentUser
 from app.ui.suppliers.supplier_form import SupplierFormDialog
-from app.ui.theme import C, F, S
+from app.ui.theme import C, F, S, empty_state_message
 
 
 class SuppliersPage(QWidget):
@@ -36,6 +36,14 @@ class SuppliersPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
+
+        title = QLabel("Suppliers", self)
+        title.setStyleSheet(f"font-size: {F.SIZE_2XL}; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
+        layout.addWidget(title)
+
+        subtitle = QLabel("Manage supplier records", self)
+        subtitle.setStyleSheet(f"font-size: {F.SIZE_SM}; color: {C.MUTED_FG}; margin-bottom: 8px;")
+        layout.addWidget(subtitle)
 
         toolbar = QHBoxLayout()
         self.add_button = QPushButton("+ Add Supplier")
@@ -64,6 +72,12 @@ class SuppliersPage(QWidget):
         self.table.doubleClicked.connect(lambda _: self.edit_selected())
         layout.addWidget(self.table, 1)
 
+        self.empty_label = QLabel("No suppliers found. Add your first supplier.", self)
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet(empty_state_message(""))
+        self.empty_label.setVisible(False)
+        layout.addWidget(self.empty_label)
+
         self.count_label = QLabel("")
         self.count_label.setStyleSheet(f"color: {C.MUTED_FG};")
         layout.addWidget(self.count_label)
@@ -89,6 +103,7 @@ class SuppliersPage(QWidget):
                 self.table.setItem(row, column, QTableWidgetItem(value))
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, supplier.id)
         self.count_label.setText(f"{len(suppliers)} supplier(s)")
+        self.empty_label.setVisible(len(suppliers) == 0)
 
     def _selected(self):
         by_id = {s.id: s for s in self._suppliers}

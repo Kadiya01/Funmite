@@ -32,7 +32,7 @@ from app.domain.services.product_service import ProductService
 from app.domain.session import CurrentUser
 from app.ui.products.import_dialog import ProductImportDialog
 from app.ui.products.product_form import ProductFormDialog
-from app.ui.theme import C, F, S
+from app.ui.theme import C, F, S, empty_state_message
 from app.ui.widgets import BarcodeScanInput
 
 _MONEY = "₦"
@@ -47,69 +47,17 @@ class ProductsPage(QWidget):
         self.current_user = current_user
         self._products: list[Product] = []
 
-        self.setStyleSheet(f"""
-            ProductsPage {{ background-color: {C.BG}; }}
-            QLabel#pageTitle {{
-                font-size: {F.SIZE_2XL};
-                font-weight: {F.WEIGHT_BOLD};
-                color: {C.FG};
-            }}
-            QLineEdit {{
-                padding: 8px 12px;
-                font-size: {F.SIZE_BASE};
-                border: 1px solid {C.BORDER};
-                border-radius: {S.RADIUS_SM};
-                background-color: {C.CARD};
-                min-height: 20px;
-            }}
-            QLineEdit:focus {{
-                border: 1px solid {C.ACCENT};
-            }}
-            QComboBox {{
-                padding: 6px 10px;
-                min-height: 20px;
-            }}
-            QTableWidget {{
-                background-color: {C.CARD};
-                border: 1px solid {C.BORDER};
-                border-radius: {S.RADIUS_MD};
-                gridline-color: {C.BORDER_LIGHT};
-                selection-background-color: {C.TABLE_SELECTION};
-                selection-color: {C.FG};
-                font-size: {F.SIZE_BASE};
-                outline: none;
-            }}
-            QTableWidget::item {{
-                padding: 4px 8px;
-                border-bottom: 1px solid {C.BORDER_LIGHT};
-                min-height: 36px;
-            }}
-            QTableWidget::item:selected {{
-                background-color: {C.TABLE_SELECTION};
-                color: {C.FG};
-            }}
-            QHeaderView::section {{
-                background-color: {C.TABLE_HEADER_BG};
-                color: {C.TABLE_HEADER_FG};
-                border: none;
-                border-right: 1px solid {C.PRIMARY_DARK};
-                border-bottom: 2px solid {C.PRIMARY_DARK};
-                padding: 8px 10px;
-                font-size: {F.SIZE_SM};
-                font-weight: {F.WEIGHT_SEMIBOLD};
-                min-height: 20px;
-            }}
-            QHeaderView::section:last {{ border-right: none; }}
-            QHeaderView::section:hover {{ background-color: {C.PRIMARY_LIGHT}; }}
-        """)
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
         title = QLabel("Products", self)
-        title.setObjectName("pageTitle")
+        title.setStyleSheet(f"font-size: {F.SIZE_2XL}; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
         layout.addWidget(title)
+
+        subtitle = QLabel("Manage your product catalogue", self)
+        subtitle.setStyleSheet(f"font-size: {F.SIZE_SM}; color: {C.MUTED_FG}; margin-bottom: 8px;")
+        layout.addWidget(subtitle)
 
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
@@ -145,15 +93,6 @@ class ProductsPage(QWidget):
         scan_label = QLabel("Scan barcode:")
         scan_label.setStyleSheet(f"font-weight: {F.WEIGHT_MEDIUM}; color: {C.FG_SECONDARY};")
         scan_row.addWidget(scan_label)
-        self.scan_input.setStyleSheet(f"""
-            QLineEdit {{
-                padding: 10px 12px;
-                font-size: {F.SIZE_MD};
-                border: 2px solid {C.ACCENT};
-                border-radius: {S.RADIUS_SM};
-                background-color: {C.CARD};
-            }}
-        """)
         scan_row.addWidget(self.scan_input, 1)
         layout.addLayout(scan_row)
 
@@ -173,6 +112,12 @@ class ProductsPage(QWidget):
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table, 1)
+
+        self.empty_label = QLabel("No products found. Add your first product.", self)
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet(empty_state_message(""))
+        self.empty_label.setVisible(False)
+        layout.addWidget(self.empty_label)
 
         self.count_label = QLabel("")
         self.count_label.setStyleSheet(f"color: {C.MUTED_FG}; font-size: {F.SIZE_SM}; padding: 4px 0;")
@@ -223,6 +168,7 @@ class ProductsPage(QWidget):
         for product in products:
             self._append_row(product)
         self.count_label.setText(f"{len(products)} product(s)")
+        self.empty_label.setVisible(len(products) == 0)
         self._update_label_button()
 
     def _append_row(self, product: Product) -> None:

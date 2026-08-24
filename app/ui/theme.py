@@ -66,6 +66,9 @@ class C:
     SIDEBAR_ACTIVE_FG = "#FFFFFF"
     SIDEBAR_ACCENT = "#059669"
 
+    INFO = "#3B82F6"
+    INFO_LIGHT = "#DBEAFE"
+
     SCROLLBAR_BG = "#F1F5F9"
     SCROLLBAR_HANDLE = "#CBD5E1"
     SCROLLBAR_HANDLE_HOVER = "#94A3B8"
@@ -112,6 +115,14 @@ class S:
     RADIUS_FULL = "9999px"
 
 
+def empty_state_message(text: str) -> str:
+    """Return QSS for a centered empty-state label."""
+    return (
+        f"font-size: {F.SIZE_MD}; color: {C.MUTED_FG}; "
+        f"padding: 40px; background: transparent;"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Sidebar Navigation Items  (unicode-safe, no external icon dependency)
 # ---------------------------------------------------------------------------
@@ -144,7 +155,7 @@ def _btn(
     min_height: str = "44px",
     border_radius: str = S.RADIUS_SM,
 ) -> str:
-    h = hover or _darken(bg)
+    h = hover or darken(bg)
     return f"""
         background-color: {bg};
         color: {fg};
@@ -158,7 +169,7 @@ def _btn(
     """
 
 
-def _darken(hex_color: str, amount: int = 15) -> str:
+def darken(hex_color: str, amount: int = 15) -> str:
     """Darken a hex color by a percentage."""
     h = hex_color.lstrip("#")
     r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
@@ -168,7 +179,7 @@ def _darken(hex_color: str, amount: int = 15) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def _lighten(hex_color: str, amount: int = 15) -> str:
+def lighten(hex_color: str, amount: int = 15) -> str:
     """Lighten a hex color by a percentage."""
     h = hex_color.lstrip("#")
     r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
@@ -213,10 +224,10 @@ QPushButton {{
     {_btn()}
 }}
 QPushButton:hover {{
-    background-color: {_darken(C.PRIMARY)};
+    background-color: {darken(C.PRIMARY)};
 }}
 QPushButton:pressed {{
-    background-color: {_darken(C.PRIMARY, 25)};
+    background-color: {darken(C.PRIMARY, 25)};
 }}
 QPushButton:disabled {{
     background-color: {C.MUTED};
@@ -232,29 +243,80 @@ QPushButton#btnPrimary:hover, QPushButton[cssClass="primary"]:hover {{
     background-color: {C.ACCENT_HOVER};
 }}
 QPushButton#btnPrimary:pressed, QPushButton[cssClass="primary"]:pressed {{
-    background-color: {_darken(C.ACCENT, 25)};
+    background-color: {darken(C.ACCENT, 25)};
 }}
 
 QPushButton#btnDanger, QPushButton[cssClass="danger"] {{
-    {_btn(C.DESTRUCTIVE, C.ON_DESTRUCTIVE, _darken(C.DESTRUCTIVE))}
+    {_btn(C.DESTRUCTIVE, C.ON_DESTRUCTIVE, darken(C.DESTRUCTIVE))}
 }}
 QPushButton#btnDanger:hover, QPushButton[cssClass="danger"]:hover {{
-    background-color: {_darken(C.DESTRUCTIVE)};
+    background-color: {darken(C.DESTRUCTIVE)};
 }}
 
 QPushButton#btnSecondary, QPushButton[cssClass="secondary"] {{
-    {_btn(C.MUTED, C.FG_SECONDARY, _lighten(C.MUTED), border=f"1px solid {C.BORDER}")}
+    {_btn(C.MUTED, C.FG_SECONDARY, lighten(C.MUTED), border=f"1px solid {C.BORDER}")}
 }}
 QPushButton#btnSecondary:hover, QPushButton[cssClass="secondary"]:hover {{
-    background-color: {_lighten(C.MUTED)};
+    background-color: {lighten(C.MUTED)};
     border: 1px solid {C.DIVIDER};
 }}
 
 QPushButton#btnSuccess, QPushButton[cssClass="success"] {{
-    {_btn(C.ACCENT, C.ON_ACCENT, C.ACCENT_HOVER, min_height="44px", font_size=F.SIZE_MD)}
+    {_btn(C.SUCCESS, C.ON_PRIMARY, darken(C.SUCCESS), min_height="44px")}
 }}
+QPushButton#btnSuccess:hover, QPushButton[cssClass="success"]:hover {{
+    background-color: {darken(C.SUCCESS)};
+}}
+
 QPushButton:focus {{
     border: 2px solid {C.FOCUS_RING};
+}}
+
+/* --- Badges --- */
+QLabel[cssClass="badge-active"] {{
+    background-color: {C.SUCCESS_LIGHT};
+    color: {C.SUCCESS};
+    border-radius: {S.RADIUS_SM};
+    padding: 4px 8px;
+    font-size: {F.SIZE_XS};
+    font-weight: {F.WEIGHT_BOLD};
+    text-transform: uppercase;
+}}
+QLabel[cssClass="badge-inactive"] {{
+    background-color: {C.MUTED};
+    color: {C.MUTED_FG};
+    border-radius: {S.RADIUS_SM};
+    padding: 4px 8px;
+    font-size: {F.SIZE_XS};
+    font-weight: {F.WEIGHT_BOLD};
+    text-transform: uppercase;
+}}
+QLabel[cssClass="badge-warning"] {{
+    background-color: {C.WARNING_LIGHT};
+    color: {C.WARNING};
+    border-radius: {S.RADIUS_SM};
+    padding: 4px 8px;
+    font-size: {F.SIZE_XS};
+    font-weight: {F.WEIGHT_BOLD};
+    text-transform: uppercase;
+}}
+QLabel[cssClass="badge-danger"] {{
+    background-color: {C.DESTRUCTIVE_LIGHT};
+    color: {C.DESTRUCTIVE};
+    border-radius: {S.RADIUS_SM};
+    padding: 4px 8px;
+    font-size: {F.SIZE_XS};
+    font-weight: {F.WEIGHT_BOLD};
+    text-transform: uppercase;
+}}
+QLabel[cssClass="badge-info"] {{
+    background-color: {C.INFO_LIGHT};
+    color: {C.INFO};
+    border-radius: {S.RADIUS_SM};
+    padding: 4px 8px;
+    font-size: {F.SIZE_XS};
+    font-weight: {F.WEIGHT_BOLD};
+    text-transform: uppercase;
 }}
 
 /* --- Line Edits, Combo Boxes, Spin Boxes, Date Edits --- */

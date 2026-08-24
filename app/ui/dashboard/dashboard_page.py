@@ -68,14 +68,6 @@ class _KPICard(QFrame):
             }}
         """)
         
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-        from PySide6.QtGui import QColor
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(15)
-        shadow.setXOffset(0)
-        shadow.setYOffset(2)
-        shadow.setColor(QColor(0, 0, 0, 10))
-        self.setGraphicsEffect(shadow)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 14)
         layout.setSpacing(4)
@@ -170,15 +162,6 @@ class DashboardPage(QWidget):
                 border-radius: {S.RADIUS_LG};
             }}
         """)
-        
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-        from PySide6.QtGui import QColor
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(20)
-        shadow.setXOffset(0)
-        shadow.setYOffset(4)
-        shadow.setColor(QColor(0, 0, 0, 10))
-        self.low_stock_card.setGraphicsEffect(shadow)
         
         card_layout = QVBoxLayout(self.low_stock_card)
         card_layout.setSpacing(16)

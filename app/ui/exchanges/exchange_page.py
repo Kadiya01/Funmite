@@ -167,7 +167,7 @@ class ExchangePage(QWidget):
         row = QHBoxLayout()
         row.addStretch(1)
         self.difference_label = QLabel("", self)
-        self.difference_label.setStyleSheet(f"font-size: 16px; font-weight: {F.WEIGHT_BOLD}; color: {C.ACCENT};")
+        self.difference_label.setStyleSheet(f"font-size: {F.SIZE_LG}; font-weight: {F.WEIGHT_BOLD}; color: {C.ACCENT};")
         row.addWidget(self.difference_label)
         layout.addLayout(row)
 

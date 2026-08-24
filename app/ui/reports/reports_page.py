@@ -74,7 +74,7 @@ class ReportsPage(QWidget):
 
         # --- Title ---
         title = QLabel("Reports", self)
-        title.setStyleSheet(f"font-size: 20px; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
+        title.setStyleSheet(f"font-size: {F.SIZE_2XL}; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
         layout.addWidget(title)
 
         # --- Date range filters ---
@@ -504,5 +504,6 @@ class ReportsPage(QWidget):
         """Update the summary label based on the active tab."""
         idx = self.tabs.currentIndex()
         tab_name = self.tabs.tabText(idx)
-        # Summary is populated after run; for now show tab name
-        self.summary_label.setText(f"Report: {tab_name}")
+        start = self.start_date.date().toString("dd MMM yyyy")
+        end = self.end_date.date().toString("dd MMM yyyy")
+        self.summary_label.setText(f"{tab_name}  •  {start} to {end}")

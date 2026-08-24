@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 from app.data.models import User
 from app.domain.errors import AuthenticationError
 from app.domain.session import AuthSession, CurrentUser
-from app.ui.theme import C, F, S
+from app.ui.theme import C, F, S, darken
 
 logger = logging.getLogger(__name__)
 
@@ -185,8 +185,8 @@ class LoginDialog(QDialog):
         self.login_button.setMinimumHeight(44)
         self.login_button.setStyleSheet(f"""
             QPushButton {{
-                background-color: {C.ACCENT};
-                color: {C.ON_ACCENT};
+                background-color: {C.PRIMARY_DARK};
+                color: {C.ON_PRIMARY};
                 border: none;
                 border-radius: {S.RADIUS_MD};
                 font-size: {F.SIZE_MD};
@@ -194,10 +194,10 @@ class LoginDialog(QDialog):
                 letter-spacing: 1px;
             }}
             QPushButton:hover {{
-                background-color: {C.ACCENT_HOVER};
+                background-color: {darken(C.PRIMARY_DARK, 10)};
             }}
             QPushButton:pressed {{
-                background-color: {_darken(C.ACCENT, 20)};
+                background-color: {darken(C.PRIMARY_DARK, 20)};
             }}
             QPushButton:disabled {{
                 background-color: {C.MUTED};
@@ -269,9 +269,3 @@ class LoginDialog(QDialog):
         self.error_label.setVisible(True)
         self.password_input.clear()
         self.password_input.setFocus()
-
-
-def _darken(hex_color: str, amount: int = 15) -> str:
-    h = hex_color.lstrip("#")
-    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
-    return f"#{max(0, r - amount):02x}{max(0, g - amount):02x}{max(0, b - amount):02x}"

@@ -54,16 +54,10 @@ from app.ui.purchases import PurchasesPage
 from app.ui.reports.reports_page import ReportsPage
 from app.ui.settings.settings_page import SettingsPage
 from app.ui.suppliers import SuppliersPage
-from app.ui.theme import C, F, NAV_ICONS, S, generate_stylesheet
+from app.ui.theme import C, F, NAV_ICONS, S, darken, generate_stylesheet
 
 APP_TITLE = "Funmite POS"
 NAV_WIDTH = 180
-
-
-def _darken(hex_color: str, amount: int = 15) -> str:
-    h = hex_color.lstrip("#")
-    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
-    return f"#{max(0, r - amount):02x}{max(0, g - amount):02x}{max(0, b - amount):02x}"
 
 
 # Sidebar QSS
@@ -71,7 +65,7 @@ _SIDEBAR_QSS = f"""
 QListWidget {{
     background-color: {C.SIDEBAR_BG};
     border: none;
-    border-right: 1px solid {_darken(C.SIDEBAR_BG, 5)};
+    border-right: 1px solid {darken(C.SIDEBAR_BG, 5)};
     outline: none;
     font-size: {F.SIZE_BASE};
     padding: 4px 0;
@@ -135,9 +129,11 @@ class MainWindow(QMainWindow):
     def _setup_status_bar(self) -> None:
         status_bar: QStatusBar = self.statusBar()
         status_bar.setFixedHeight(28)
-        status = f"version {__version__}"
+        status = f"v{__version__}"
         if self.current_user is not None:
-            status = f"{self.current_user.display_label}   |   {status}"
+            role_label = self.current_user.role.title()
+            name_label = self.current_user.full_name or self.current_user.username
+            status = f"{role_label} \u2022 {name_label}   |   v{__version__}"
         status_bar.showMessage(status)
 
         self._sync_indicator = QLabel("☁ Offline")
@@ -230,7 +226,7 @@ class MainWindow(QMainWindow):
             font-weight: {F.WEIGHT_MEDIUM};
             padding: 0 0 12px 0;
             letter-spacing: 1px;
-            border-bottom: 1px solid {_darken(C.SIDEBAR_BG, -5)};
+            border-bottom: 1px solid {darken(C.SIDEBAR_BG, -5)};
             background-color: {C.SIDEBAR_BG};
         """)
         sidebar_layout.addWidget(subtitle)
@@ -242,41 +238,48 @@ class MainWindow(QMainWindow):
         self.nav.setIconSize(QSize(18, 18))
         sidebar_layout.addWidget(self.nav, 1)
 
-        # User section at bottom
         user_frame = QFrame()
         user_frame.setStyleSheet(f"""
             QFrame {{
-                background-color: {_darken(C.SIDEBAR_BG, -8)};
-                border-top: 1px solid {_darken(C.SIDEBAR_BG, -5)};
-                padding: 0;
+                background-color: {darken(C.SIDEBAR_BG, -8)};
+                border-top: 1px solid {darken(C.SIDEBAR_BG, -5)};
+                padding: 16px;
             }}
         """)
-        user_layout = QHBoxLayout(user_frame)
-        user_layout.setContentsMargins(12, 10, 12, 10)
+        user_layout = QVBoxLayout(user_frame)
+        user_layout.setContentsMargins(16, 16, 16, 16)
+        user_layout.setSpacing(12)
 
-        user_icon = QLabel("\u25CF")
-        user_icon.setStyleSheet(f"color: {C.ACCENT}; font-size: 14px; background: transparent;")
-        user_layout.addWidget(user_icon)
-
-        user_info = QLabel(current_user.display_label)
-        user_info.setStyleSheet(f"""
+        role_label = QLabel(current_user.role.title())
+        role_label.setStyleSheet(f"""
             color: {C.SIDEBAR_FG};
-            font-size: {F.SIZE_SM};
-            font-weight: {F.WEIGHT_MEDIUM};
+            font-size: {F.SIZE_XS};
+            font-weight: {F.WEIGHT_BOLD};
+            text-transform: uppercase;
+            letter-spacing: 1px;
             background: transparent;
         """)
-        user_layout.addWidget(user_info, 1)
+        user_layout.addWidget(role_label)
+        
+        name_label = QLabel(current_user.full_name or current_user.username)
+        name_label.setStyleSheet(f"""
+            color: {C.ON_PRIMARY};
+            font-size: {F.SIZE_MD};
+            font-weight: {F.WEIGHT_SEMIBOLD};
+            background: transparent;
+        """)
+        user_layout.addWidget(name_label)
 
         logout_btn = QPushButton("Log out")
-        logout_btn.setFixedHeight(28)
+        logout_btn.setMinimumHeight(36)
         logout_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
                 color: {C.SIDEBAR_FG};
-                border: 1px solid {_darken(C.SIDEBAR_BG, -10)};
-                border-radius: 4px;
+                border: 1px solid {darken(C.SIDEBAR_BG, -10)};
+                border-radius: {S.RADIUS_SM};
                 font-size: {F.SIZE_SM};
-                padding: 2px 10px;
+                font-weight: {F.WEIGHT_MEDIUM};
             }}
             QPushButton:hover {{
                 background-color: {C.DESTRUCTIVE};

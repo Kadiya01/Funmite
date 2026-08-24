@@ -50,7 +50,7 @@ class MySalesPage(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("My Sales", self)
-        title.setStyleSheet(f"font-size: 20px; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
+        title.setStyleSheet(f"font-size: {F.SIZE_2XL}; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
         layout.addWidget(title)
 
         # Date range filters

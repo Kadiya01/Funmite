@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.ui.theme import C, F, S
+from app.ui.theme import C, F, S, empty_state_message
 from app.data.db import session_scope
 from app.domain.services.purchase_service import PurchaseService
 from app.domain.session import CurrentUser
@@ -35,6 +35,14 @@ class PurchasesPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
+
+        title = QLabel("Purchases", self)
+        title.setStyleSheet(f"font-size: {F.SIZE_2XL}; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
+        layout.addWidget(title)
+
+        subtitle = QLabel("Record supplier purchases and manage stock intake", self)
+        subtitle.setStyleSheet(f"font-size: {F.SIZE_SM}; color: {C.MUTED_FG}; margin-bottom: 8px;")
+        layout.addWidget(subtitle)
 
         toolbar = QHBoxLayout()
         self.add_button = QPushButton("+ Record Purchase")
@@ -57,6 +65,12 @@ class PurchasesPage(QWidget):
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table, 1)
+
+        self.empty_label = QLabel("No purchases found. Record your first purchase.", self)
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setStyleSheet(empty_state_message(""))
+        self.empty_label.setVisible(False)
+        layout.addWidget(self.empty_label)
 
         self.count_label = QLabel("")
         self.count_label.setStyleSheet(f"color: {C.MUTED_FG};")
@@ -86,6 +100,7 @@ class PurchasesPage(QWidget):
                 self.table.setItem(row, column, QTableWidgetItem(value))
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, purchase.id)
         self.count_label.setText(f"{len(purchases)} purchase(s)")
+        self.empty_label.setVisible(len(purchases) == 0)
 
     def add_purchase(self) -> None:
         dialog = PurchaseFormDialog(

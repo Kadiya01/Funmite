@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.ui.theme import C, F, S
+from app.ui.theme import C, F, S, empty_state_message
 
 from app.data.db import session_scope
 from app.data.models import LOW_STOCK_THRESHOLD, Product
@@ -100,6 +100,12 @@ class InventoryPage(QWidget):
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.stock_table, 1)
+
+        self.stock_empty = QLabel("No products found.", tab)
+        self.stock_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.stock_empty.setStyleSheet(empty_state_message(""))
+        self.stock_empty.setVisible(False)
+        layout.addWidget(self.stock_empty)
 
         self.stock_count_label = QLabel("")
         layout.addWidget(self.stock_count_label)
@@ -239,6 +245,12 @@ class InventoryPage(QWidget):
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.movement_table, 1)
 
+        self.movement_empty = QLabel("No movements recorded.", tab)
+        self.movement_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.movement_empty.setStyleSheet(empty_state_message(""))
+        self.movement_empty.setVisible(False)
+        layout.addWidget(self.movement_empty)
+
         self.movement_count_label = QLabel("")
         layout.addWidget(self.movement_count_label)
 
@@ -336,6 +348,7 @@ class InventoryPage(QWidget):
                 self.stock_table.setItem(row, column, item)
             self.stock_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, product.id)
         self.stock_count_label.setText(f"{len(products)} product(s)")
+        self.stock_empty.setVisible(len(products) == 0)
 
     def _refresh_low_stock(self) -> None:
         with session_scope(self.session_factory) as session:
@@ -363,8 +376,10 @@ class InventoryPage(QWidget):
                 f"{len(products)} product(s) are low on stock "
                 f"({LOW_STOCK_THRESHOLD} or fewer)."
             )
+            self.low_stock_table.setVisible(True)
         else:
-            self.low_stock_label.setText("No products are low on stock.")
+            self.low_stock_label.setText("All products are well stocked.")
+            self.low_stock_table.setVisible(False)
 
     def _refresh_movements(self) -> None:
         product_id = self.movement_filter.currentData()
@@ -394,6 +409,7 @@ class InventoryPage(QWidget):
             for column, value in enumerate(values):
                 self.movement_table.setItem(row, column, QTableWidgetItem(value))
         self.movement_count_label.setText(f"{len(logs)} movement(s)")
+        self.movement_empty.setVisible(len(logs) == 0)
 
     # --- actions ---------------------------------------------------------- #
 

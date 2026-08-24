@@ -65,6 +65,14 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(16)
 
+        title = QLabel("Settings", self)
+        title.setStyleSheet(f"font-size: {F.SIZE_2XL}; font-weight: {F.WEIGHT_BOLD}; color: {C.FG};")
+        layout.addWidget(title)
+
+        subtitle = QLabel("Backup, restore, and system configuration", self)
+        subtitle.setStyleSheet(f"font-size: {F.SIZE_SM}; color: {C.MUTED_FG}; margin-bottom: 8px;")
+        layout.addWidget(subtitle)
+
         # -- Backup section ------------------------------------------------- #
 
         backup_group = QGroupBox("Database Backup")
@@ -353,7 +361,7 @@ class SettingsPage(QWidget):
 
         if not is_registered(self._settings.data_dir):
             self._sync_status_value.setText("Not registered")
-            self._sync_status_value.setStyleSheet(f"color: #F59E0B;")
+            self._sync_status_value.setStyleSheet(f"color: {C.WARNING};")
             self._reg_form.setVisible(True)
             self._sync_now_btn.setVisible(False)
             self._pending_label.setText("—")
@@ -373,10 +381,10 @@ class SettingsPage(QWidget):
 
         if self._sync_worker is not None:
             self._sync_status_value.setText("Active")
-            self._sync_status_value.setStyleSheet(f"color: #10B981;")
+            self._sync_status_value.setStyleSheet(f"color: {C.SUCCESS};")
         else:
             self._sync_status_value.setText("Registered (worker not running)")
-            self._sync_status_value.setStyleSheet(f"color: #F59E0B;")
+            self._sync_status_value.setStyleSheet(f"color: {C.WARNING};")
 
     def _on_register_device(self) -> None:
         """Register this device with the cloud sync service."""
@@ -429,7 +437,7 @@ class SettingsPage(QWidget):
 
         self._sync_now_btn.setEnabled(False)
         self._sync_status_value.setText("Syncing…")
-        self._sync_status_value.setStyleSheet(f"color: #3B82F6;")
+        self._sync_status_value.setStyleSheet(f"color: {C.INFO};")
         try:
             self._sync_worker.trigger_push()
             self._sync_worker.trigger_pull()

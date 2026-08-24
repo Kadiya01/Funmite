@@ -2,6 +2,38 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.0] — UI/UX Polish (Pre-UAT)
+
+- Consolidated `_darken`/`_lighten` utility functions into `app/ui/theme.py` as
+  public `darken()`/`lighten()` functions. Removed duplicate local definitions
+  from `main.py`, `pos_page.py`, and `login_dialog.py`.
+- Added `INFO` and `INFO_LIGHT` color tokens to the `C` class in theme.
+- Added `empty_state_message()` helper in theme for consistent empty-state labels.
+- Added page titles and subtitles to Customers, Suppliers, Expenses, Purchases,
+  Products, and Settings pages for consistent navigation context.
+- Replaced all hardcoded font sizes (e.g. `20px`, `16px`) with theme tokens
+  (`F.SIZE_2XL`, `F.SIZE_LG`) in reports, my sales, and exchange pages.
+- Replaced all hardcoded color hex values (`#F59E0B`, `#10B981`, `#3B82F6`) in
+  settings page with theme tokens (`C.WARNING`, `C.SUCCESS`, `C.INFO`).
+- Removed QGraphicsDropShadowEffect from dashboard KPI cards and low-stock card
+  for a cleaner, flatter Industrial Slate design.
+- Polished status bar format: `"Admin • Jamilu | v1.2.0"` (bullet separator,
+  `v` prefix on version, role and name separated by bullet).
+- Added empty-state labels for all major tables: Customers, Suppliers, Expenses,
+  Purchases, Products, Inventory (Current Stock, Movement, Low Stock), and POS cart.
+- Added "No items in cart" empty state to POS page cart area with toggle visibility.
+- Standardized form save/complete button heights to 44px across all form dialogs.
+- Improved reports summary label to show tab name and date range instead of
+  generic "Report: Tab Name".
+- Removed redundant local QSS override block in Products page (55 lines of
+  duplicated styling now provided by the global theme stylesheet).
+- Removed redundant scan-input QSS override in Products page.
+- Added Settings page title and subtitle header.
+- Updated `test_app_shell.py` to match new status bar format.
+- All 657 tests passing (0 failures). Regressed at baseline.
+- Built `dist/FunmitePOS/FunmitePOS.exe` — production EXE with all assets bundled.
+- Version bumped to 1.3.0.
+
 ## [1.2.0] — Phase 11 Production Hardening
 
 - Fixed pre-existing backup filename timestamp collision: backup filenames now

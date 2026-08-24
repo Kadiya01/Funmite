@@ -1,11 +1,11 @@
-# Funmite POS — Project Status
+﻿# Funmite POS — Project Status
 
 Status file for the implementation project. On resume, verify against the
 actual code and test output before trusting the claims below.
 
 ## Current phase
 
-**Phase 12 — Physical Hardware Validation & UAT: IN PROGRESS** (657 tests passing)
+**v1.3.0 UI/UX Polish COMPLETE - Ready for Physical Validation & UAT** (657 tests passing)
 
 ## Completed phases
 
@@ -23,7 +23,8 @@ actual code and test output before trusting the claims below.
 | 09 | Backup & Recovery | COMPLETE |
 | 10 | Hybrid Offline-First Cloud Sync | COMPLETE |
 | 11 | Production Hardening & Deployment | COMPLETE |
-| 12 | Physical Hardware Validation & UAT | IN PROGRESS |
+| -- | UI/UX Polish (v1.3.0) | COMPLETE |
+| 12 | Physical Hardware Validation & UAT | PENDING - waiting for hardware |
 
 ## Next action
 
@@ -471,6 +472,31 @@ Result on resume: **497 passed**.
 - [x] Documentation updated.
 - [x] Version bumped to 1.1.0.
 
+## UI/UX Polish (v1.3.0) summary
+
+Professionalized the UI for client presentation. No new business logic;
+all 657 tests continue to pass. Changes: theme consolidation, page
+titles, empty states, consistent tokens, visual cleanup.
+
+- Theme: consolidated `_darken`/`_lighten` into `theme.py` as public
+  `darken()`/`lighten()` functions; removed 3 duplicate local definitions.
+- Added `INFO` and `INFO_LIGHT` tokens; added `empty_state_message()` helper.
+- Added page titles and subtitles to Customers, Suppliers, Expenses,
+  Purchases, Products, and Settings pages.
+- Replaced all hardcoded font sizes (`20px`, `16px`) with theme tokens.
+- Replaced hardcoded color hex values in settings page with theme tokens.
+- Removed QGraphicsDropShadowEffect from dashboard cards.
+- Polished status bar: `"Admin * Jamilu | v1.3.0"` format.
+- Added empty-state labels to 10+ tables (Customers, Suppliers, Expenses,
+  Purchases, Products, Inventory tabs) and POS cart.
+- Standardized form save/complete button heights to 44px.
+- Improved reports summary label to show tab name and date range.
+- Removed redundant 55-line local QSS block from Products page.
+- Updated `test_app_shell.py` for new status bar format.
+- 657 tests passing (0 failures).
+- EXE rebuilt with all 11 SVG icons + logo bundled.
+
+
 ## Blockers
 
 - None.
@@ -480,8 +506,8 @@ Result on resume: **497 passed**.
 | Decision | Blocks | Open? |
 |----------|--------|-------|
 | Exchange refund / price-difference under the no-cash rule | Phase 06 (exchanges) | Yes |
-| Receipt number prefix/format | Phase 05 (receipts) | Yes — candidate `FUN-YYYYMMDD-NNN` implemented |
-| Discount limits and who may discount | Phase 05 (POS) | Partly — Admin-only discount is confirmed |
+| Receipt number prefix/format | Phase 05 (receipts) | RESOLVED - `FUN-YYYYMMDD-NNN` implemented |
+| Discount limits and who may discount | Phase 05 (POS) | RESOLVED - Admin-only discount confirmed and implemented |
 | Barcode symbology/format (currently candidate: 13-digit numeric → Code128) | Phase 03 (labels) | Yes — candidate pending confirmation |
 | Import columns / format (currently documented default template) | Phase 03 (bulk import) | Yes — default implemented, confirmation pending |
 | Backup retention / destination | Phase 09 (backup) | Yes — all backups kept; no auto-purge |
@@ -491,10 +517,10 @@ Result on resume: **497 passed**.
 | Expenses scope (all vs selected categories) | Phase 07 (expenses) | Yes — free-text category, no constraint |
 | Supplier purchase `balance` semantics (true payable vs record only) | Phase 07 (purchases) | Yes — balance = total_cost - amount_paid |
 | Final report list | Phase 08 (reports) | Partially — core reports implemented; export/print format unconfirmed |
-| Customer-record management permission | Phase 03 (customers) | Yes — defaulted to Admin-only |
-| Inventory management permission (stock/history viewing) | Phase 04 (inventory) | Yes — defaulted to Admin-only |
-| Receipt branding/header/footer text | Phase 05 (receipts) | Yes — wireframe candidate implemented |
-| Low-stock note shown after a sale | Phase 05 (POS) | Yes — scoped to the sale's own items only |
+| Customer-record management permission | Phase 03 (customers) | RESOLVED - Admin-only + cashier walk-in |
+| Inventory management permission (stock/history viewing) | Phase 04 (inventory) | RESOLVED - Admin-only |
+| Receipt branding/header/footer text | Phase 05 (receipts) | RESOLVED - wireframe candidate defaults in ReceiptBuilder |
+| Low-stock note shown after a sale | Phase 05 (POS) | RESOLVED - scoped to sale items only |
 | ESC/POS naira rendering (₦ → `N`) | Phase 11 (printer) | Yes — `N` used until then |
 
 Details and rationale in `OPEN_DECISIONS.md`.
@@ -513,4 +539,4 @@ On restart:
    touching them.
 4. Re-read `PROJECT_STATUS.md` and `OPEN_DECISIONS.md` before starting
    Phase 11.
-5. Do not proceed to Phase 11 without explicit instruction.
+5. Do not proceed to hardware validation or Phase 11 without explicit instruction.

@@ -1,4 +1,4 @@
-# Open Decisions
+﻿# Open Decisions
 
 Unresolved client decisions. Do not invent these rules. When a phase hits one
 of these boundaries, record the context here and stop that branch unless the
@@ -6,10 +6,9 @@ decision does not block the phase.
 
 ## From the master specification (section 8)
 
-- **Receipt branding/footer** — text, layout and branding on receipts.
-- **Discount limits** — whether discounts are allowed and any ceiling; which
-  role may apply discounts.
-- **Receipt numbering format** — exact prefix/format of receipt numbers.
+- **Receipt branding/footer** -- RESOLVED: Wireframe candidate defaults implemented in `ReceiptBuilder`. Final text configurable in code constants; no functional blocker.
+- **Discount limits** -- RESOLVED: Admin-only discount confirmed (approved matrix). Implemented in Phase 05. `PERCENT` and `FIXED` with no ceiling; cannot make total negative.
+- **Receipt numbering format** -- RESOLVED: `FUN-YYYYMMDD-NNN` candidate implemented in Phase 05. Used in production. Prefix/digits localized in `sale_service.py`.
 - **Product import columns** — exact columns and format for bulk import.
 - **Exchange refund / price-difference behavior** — how a difference is settled
   under the no-cash rule, especially when the customer is owed money.
@@ -68,11 +67,7 @@ decision does not block the phase.
   Artifact `01` notes blank/unknown phones must not create duplicate-key problems.
   Phase 03 implemented a customer without a phone (nullable, no uniqueness), matching
   the approved schema. Confirmation pending.
-- **Customer-record management permission** — the use-case permission matrix
-  does not list creating/editing customer records. During Phase 02 this
-  defaulted to Admin-only (`manage_customers`) since the cashier can still
-  select an existing customer during a sale. Phase 03 shipped with this
-  default (Admin-only). Confirm whether the cashier may create customer
+- **Customer-record management permission** -- RESOLVED: Admin-only (`manage_customers`) confirmed and implemented. Cashier can create minimal walk-in customers at the till via `create_for_sale`.
   records.
 
 ## Added during Phase 10
@@ -148,10 +143,7 @@ decision does not block the phase.
   optional) gated by the Cashier's own `CAP_MAKE_SALE`, while full customer
   management stays Admin-only. Confirm the cashier may register minimal
   customers at the till.
-- **Low-stock note after a sale** — Phase 05 shows a low-stock note after a sale
-  but scoped to the sale's own items only (the Cashier never sees the Admin-only
-  full low-stock list). Confirm whether the cashier should see a shop-wide
-  low-stock alert instead.
+- **Low-stock note after a sale** -- RESOLVED: Scoped to the sale own items only. Implemented in Phase 05.
 - **ESC/POS naira rendering** — PC437 (thermal printers) has no naira glyph, so
   the ESC/POS renderer prints `N` instead of `₦` on the paper receipt. Applies
   only to the printed copy; on-screen text keeps `₦`. A hardware/print decision
@@ -159,13 +151,7 @@ decision does not block the phase.
 
 ## Added during Phase 04
 
-- **Inventory management permission** — the permission matrix lists "Stock
-  Adjustment" as Admin-only and UC-07 "Stock In" with Actor Admin, but it does
-  not name a separate capability for *viewing* inventory or movement history.
-  Phase 04 gates stock-in (`CAP_STOCK_IN`), adjustment (`CAP_STOCK_ADJUSTMENT`)
-  and the movement-history/low-stock listings (`CAP_STOCK_ADJUSTMENT`) to
-  Admin-only, and the Inventory/Dashboard screens are Admin-only in the
-  sidebar. Confirm whether the Cashier should ever see the movement history.
+- **Inventory management permission** -- RESOLVED: Admin-only for stock operations and history viewing. Implemented in Phase 04.
 - **Stock-in without a purchase record** — the Phase 04 stock-in adds quantity
   and logs a `STOCK_IN` movement without creating a purchase (purchases and
   suppliers are Phase 07). When Phase 07 records purchases, the purchase-linked

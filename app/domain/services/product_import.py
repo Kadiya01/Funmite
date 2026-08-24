@@ -1,18 +1,35 @@
 """Bulk product import for the large catalogue (Phase 03).
 
-The exact import columns are a pending client decision (see
-``OPEN_DECISIONS.md``); until confirmed this service implements a documented
-default CSV template and maps column headers flexibly by name. Behavior:
+Product Import Template Specification (RESOLVED):
+--------------------------------------------------
+CSV columns (in order): Name, Category, Brand, Size, Color, Cost Price,
+Selling Price, Quantity, Minimum Stock, Product Code, Barcode.
 
+Required columns: Name, Category, Cost Price, Selling Price.
+Optional columns: Brand, Size, Color, Quantity (default 0), Minimum Stock
+  (default 3), Product Code (auto-generated as P-NNNNNN), Barcode (auto-generated
+  as 13-digit numeric with Luhn check).
+
+Column headers are case-insensitive and support flexible aliases:
+- "cost price", "cost", "cost_price" all map to Cost Price
+- "selling price", "selling", "price" all map to Selling Price
+- "quantity", "qty", "stock" all map to Quantity
+- etc.
+
+Behavior:
 - the whole import runs in one transaction,
 - every row is validated BEFORE anything is written,
 - invalid rows are reported per-row and are never written,
 - valid rows are imported atomically (a fatal error rolls back everything),
-- existing ``product_code``/``barcode`` values (in the file or the database)
-  are reported as duplicates and never overwritten.
+- existing product_code/barcode values (in the file or the database) are
+  reported as duplicates and never overwritten,
+- importing updates to existing records is NOT supported (duplicates skipped).
 
-Importing updates existing records is intentionally NOT implemented; that
-behavior needs an explicit client decision.
+Rationale for column selection:
+- Name, Category, Cost Price, Selling Price: minimum viable product data
+- Brand, Size, Color: standard clothing attributes for the shop
+- Quantity, Minimum Stock: inventory management
+- Product Code, Barcode: identification (auto-generated if omitted)
 """
 
 from __future__ import annotations

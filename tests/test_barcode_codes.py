@@ -102,3 +102,13 @@ def test_max_numeric_barcode_ignores_non_numeric_values(session):
     )
     session.flush()
     assert ProductRepository(session).max_numeric_barcode() is None
+
+
+def test_barcode_format_specification():
+    """Product barcode must be 13-digit numeric with Luhn check (RESOLVED decision)."""
+    generator = NumericBarcodeGenerator(repository=_StubRepository())
+    value = generator.generate(None)
+    assert len(value) == 13, "Barcode must be 13 digits"
+    assert value.isdigit(), "Barcode must be numeric only"
+    assert Luhn.is_valid(value), "Barcode must pass Luhn check"
+    assert int(value) >= 100_000_000_000, "Barcode body must be 12 digits"

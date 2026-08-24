@@ -99,3 +99,23 @@ def test_render_includes_receipt_number_and_shop():
     out = EscPosRenderer().render(data)
     assert b"RECEIPT: FUN-20260101-001" in out
     assert b"FUNMITE CLOTHING & BEYOND" in out
+
+
+def test_render_barcode_with_long_receipt_number():
+    data = _receipt(barcode="FUN-20261231-999")
+    out = EscPosRenderer().render(data)
+    assert b"\x1d\x6b\x49" + b"FUN-20261231-999" + b"\x00" in out
+
+
+def test_render_barcode_with_single_digit_sequence():
+    data = _receipt(barcode="FUN-20260101-001")
+    out = EscPosRenderer().render(data)
+    assert b"FUN-20260101-001" in out
+
+
+def test_render_barcode_preserves_receipt_format():
+    """Receipt barcode must encode the full receipt number with FUN- prefix."""
+    receipt_no = "FUN-20260615-042"
+    data = _receipt(barcode=receipt_no)
+    out = EscPosRenderer().render(data)
+    assert receipt_no.encode("ascii") in out

@@ -508,12 +508,12 @@ titles, empty states, consistent tokens, visual cleanup.
 | Exchange refund / price-difference under the no-cash rule | Phase 06 (exchanges) | Yes |
 | Receipt number prefix/format | Phase 05 (receipts) | RESOLVED - `FUN-YYYYMMDD-NNN` implemented |
 | Discount limits and who may discount | Phase 05 (POS) | RESOLVED - Admin-only discount confirmed and implemented |
-| Barcode symbology/format (currently candidate: 13-digit numeric → Code128) | Phase 03 (labels) | Yes — candidate pending confirmation |
+| Barcode symbology/format (currently candidate: 13-digit numeric -> Code128) | Phase 03 (labels) | RESOLVED - 13-digit numeric + Luhn, Code128 symbology |
 | Import columns / format (currently documented default template) | Phase 03 (bulk import) | Yes — default implemented, confirmation pending |
 | Backup retention / destination | Phase 09 (backup) | Yes — all backups kept; no auto-purge |
 | Selected cloud/hybrid package and LAN sync method | Phase 10 (sync) | RESOLVED — Option A implemented |
 | Deployment topology (single local `.db` vs Admin-hosted LAN FastAPI) | Phase 01 data access + Phase 10 | RESOLVED — dual independent SQLite + cloud |
-| Receipt barcode content (receipt number exactly?) | Phase 05 (receipt barcode) | Yes — currently the receipt number |
+| Receipt barcode content (receipt number exactly?) | Phase 05 (receipt barcode) | RESOLVED - receipt number encoded as Code128 |
 | Expenses scope (all vs selected categories) | Phase 07 (expenses) | Yes — free-text category, no constraint |
 | Supplier purchase `balance` semantics (true payable vs record only) | Phase 07 (purchases) | Yes — balance = total_cost - amount_paid |
 | Final report list | Phase 08 (reports) | Partially — core reports implemented; export/print format unconfirmed |

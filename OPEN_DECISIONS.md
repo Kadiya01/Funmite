@@ -49,7 +49,7 @@ decision does not block the phase.
   `funmite.db`. Cloud PostgreSQL is the central aggregation point for remote
   owner access. No LAN FastAPI hosting — each PC is fully self-contained and
   offline-first. Phase 10 implemented this (Option A).
-- **Receipt barcode content** — Artifact `05` schema-freeze checklist asks to confirm
+- **Receipt barcode content** -- RESOLVED: Encodes the receipt number exactly (e.g. `FUN-20260101-001`). Format: `FUN-YYYYMMDD-NNN`. Symbology: Code128. Rationale: human-readable, unique (DB constraint), standard retail practice. Implemented in Phase 05.
   whether the receipt barcode encodes the receipt number exactly. Candidate from the
   wireframes: the receipt barcode represents the receipt/transaction identifier.
 - **Expenses scope** — Artifact `05` checklist asks whether expenses include all shop
@@ -127,7 +127,7 @@ decision does not block the phase.
 
 ## Added during Phase 03
 
-- **Barcode symbology/format** — products have no existing barcodes, so the
+- **Barcode symbology/format** -- RESOLVED: 13-digit numeric (12 + Luhn check). Symbology: Code128. No GS1/EAN needed (private shop). Uniqueness: counter + batch + DB constraint. Implemented in Phase 03.
   system generates one per product (confirmed). Phase 03 implemented a
   candidate format: a 13-digit numeric value (12-digit sequence + Luhn check
   digit) rendered as Code128, which a generic scanner reads back as plain

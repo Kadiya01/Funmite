@@ -9,6 +9,25 @@ configurable defaults in ``ReceiptBuilder`` and recorded in
 ``ReceiptData`` is a plain dataclass: it contains only primitives/Decimals, so
 it stays usable after the ORM session closes. Build it inside a short-lived
 session (``ReceiptService.build_receipt``) and then hand it to any printer.
+
+Receipt Barcode Specification (RESOLVED):
+-----------------------------------------
+The receipt barcode encodes the receipt number exactly (e.g. ``FUN-20260101-001``).
+Format: ``FUN-<YYYYMMDD>-<NNN>`` where NNN is a daily sequence (001-999).
+
+Symbology: Code128 (renders any ASCII text, universally supported by scanners).
+
+Rationale:
+- Receipt number is human-readable (can be typed manually if barcode is damaged)
+- Receipt number is unique (enforced by database UNIQUE constraint on sales.receipt_no)
+- Standard retail practice for transaction lookup, reprint, and exchange
+- No device prefix needed for single-PC deployment; multi-PC prefix deferred
+  (see OPEN_DECISIONS.md "Receipt number device prefix")
+
+The barcode is rendered:
+- On-screen: as text in the receipt preview
+- On-paper: via ESC/POS ``GS k 73`` (Code128) command for thermal printer
+- On-labels: via ``python-barcode`` Code128 SVG renderer
 """
 
 from __future__ import annotations

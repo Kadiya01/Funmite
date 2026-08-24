@@ -179,3 +179,16 @@ def test_import_requires_admin_permission(session):
 
 def test_sample_template_documented(session):
     assert ProductImportService.sample_template() == DEFAULT_TEMPLATE_HEADER
+
+
+def test_import_template_format_specification():
+    """Import template must follow the RESOLVED 11-column CSV format."""
+    header = DEFAULT_TEMPLATE_HEADER.split(",")
+    assert len(header) == 11
+    required = ["Name", "Category", "Cost Price", "Selling Price"]
+    for col in required:
+        assert col in header, f"Required column '{col}' missing from template"
+    optional = ["Brand", "Size", "Color", "Quantity", "Minimum Stock", "Product Code", "Barcode"]
+    for col in optional:
+        assert col in header, f"Optional column '{col}' missing from template"
+    assert header.index("Name") < header.index("Category") < header.index("Cost Price")

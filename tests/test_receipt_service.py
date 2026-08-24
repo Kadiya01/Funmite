@@ -58,6 +58,21 @@ def test_build_receipt_contains_expected_content(session_factory, session):
     line = receipt.lines[0]
     assert line.name == "Ladies Gown"
     assert line.quantity == 2
+
+
+def test_receipt_barcode_is_receipt_number(session_factory, session):
+    """Receipt barcode must encode the receipt number exactly (RESOLVED decision)."""
+    sale = _complete_sale(session_factory, session)
+    receipt = _receipt(session_factory, sale.id)
+    assert receipt.barcode == sale.receipt_no
+    assert receipt.barcode.startswith("FUN-")
+    assert len(receipt.barcode) == len("FUN-YYYYMMDD-NNN")
+
+
+def test_build_receipt_discount_and_total(session_factory, session):
+    sale = _complete_sale(session_factory, session)
+    receipt = _receipt(session_factory, sale.id)
+    line = receipt.lines[0]
     assert line.unit_price == Decimal("35000")
     assert line.total == Decimal("70000")
     assert receipt.subtotal == Decimal("70000")

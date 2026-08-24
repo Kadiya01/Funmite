@@ -1,17 +1,31 @@
 """Unique product barcode generation.
 
-The shop's products have no barcodes, so the system generates one per product
-(confirmed requirement). The generator produces 13-digit numeric values — a
-12-digit sequence plus a Luhn check digit for scan-error detection. The exact
-label symbology/format is a pending client decision (see ``OPEN_DECISIONS.md``);
-until it is confirmed we render these values as Code128, which a generic
-scanner reads back as the same plain digits.
+The shop's products have no existing barcodes, so the system generates one per
+product (confirmed requirement). The generator produces 13-digit numeric values
+— a 12-digit sequence plus a Luhn check digit for scan-error detection.
 
-Uniqueness is guaranteed in three layers:
+Product Barcode Specification (RESOLVED):
+-----------------------------------------
+Format: 13-digit numeric (12-digit body + 1-digit Luhn check digit).
+Symbology: Code128 (renders any ASCII text, universally supported by scanners).
+Seed: 100_000_000_000 (first barcode: 100000000000X).
 
-1. the candidate counter starts above the largest existing numeric barcode,
-2. values handed out within one batch are remembered so they are never repeated,
-3. the database ``UNIQUE`` constraint on ``products.barcode`` is the final guard.
+Rationale:
+- Shop products have no existing barcodes; system-generated is confirmed
+- 13-digit numeric is human-readable (can be typed manually at the till)
+- Luhn check digit detects scanning errors (transposition, single-digit)
+- Code128 is universally supported by generic USB barcode scanners
+- No GS1/EAN allocation needed (private shop, no retail chain requirements)
+- Uniqueness guaranteed in three layers:
+  1. Counter starts above largest existing barcode
+  2. Batch generation prevents within-batch collisions
+  3. Database UNIQUE constraint on products.barcode is final guard
+
+The barcode is used for:
+- Product lookup at POS (scan to add to cart)
+- Product search (type barcode in search field)
+- Barcode label printing (SVG Code128 labels)
+- Product import (barcode field in CSV template)
 """
 
 from __future__ import annotations

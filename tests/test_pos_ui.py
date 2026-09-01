@@ -425,10 +425,13 @@ def test_complete_sale_requires_cart(qtbot, session_factory, session):
     page = _page(session_factory, admin)
     qtbot.addWidget(page)
     _select_customer(page, customer)
+
+    assert not page.complete_button.isEnabled()
+    assert "ADD A PRODUCT" in page.complete_button.text()
+
     page.complete_button.click()
 
-    assert not page.error_label.isHidden()
-    assert "at least one product" in page.error_label.text()
+    assert page.error_label.isHidden()
     with session_factory() as check:
         assert check.scalar(select(Sale)) is None
 

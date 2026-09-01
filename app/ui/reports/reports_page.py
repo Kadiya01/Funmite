@@ -504,6 +504,6 @@ class ReportsPage(QWidget):
         """Update the summary label based on the active tab."""
         idx = self.tabs.currentIndex()
         tab_name = self.tabs.tabText(idx)
-        start = self.start_date.date().toString("dd MMM yyyy")
-        end = self.end_date.date().toString("dd MMM yyyy")
+        start = self.date_from.date().toString("dd MMM yyyy")
+        end = self.date_to.date().toString("dd MMM yyyy")
         self.summary_label.setText(f"{tab_name}  •  {start} to {end}")

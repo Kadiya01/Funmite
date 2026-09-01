@@ -97,7 +97,10 @@ class PurchasesPage(QWidget):
                 format_money(purchase.balance),
             ]
             for column, value in enumerate(values):
-                self.table.setItem(row, column, QTableWidgetItem(value))
+                item = QTableWidgetItem(value)
+                if column in (2, 3, 4):
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.table.setItem(row, column, item)
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, purchase.id)
         self.count_label.setText(f"{len(purchases)} purchase(s)")
         self.empty_label.setVisible(len(purchases) == 0)

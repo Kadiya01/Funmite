@@ -172,6 +172,7 @@ class ProductsPage(QWidget):
         self._update_label_button()
 
     def _append_row(self, product: Product) -> None:
+        from app.utils.formatting import format_money
         row = self.table.rowCount()
         self.table.insertRow(row)
         category = product.category.name if product.category else ""
@@ -180,8 +181,8 @@ class ProductsPage(QWidget):
             category,
             product.size or "",
             product.color or "",
-            str(product.cost_price),
-            str(product.selling_price),
+            format_money(product.cost_price),
+            format_money(product.selling_price),
             str(product.quantity),
             str(product.minimum_stock),
             product.barcode,
@@ -190,7 +191,7 @@ class ProductsPage(QWidget):
         ]
         for column, value in enumerate(values):
             item = QTableWidgetItem(value)
-            if column in (4, 5):
+            if column in (4, 5, 6, 7): # money and numbers
                 item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row, column, item)
         self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, product.id)

@@ -641,6 +641,13 @@ class PosPage(QWidget):
         self.discount_readout.setText(f"Discount: {format_money(discount)}")
         self.total_label.setText(f"TOTAL: {format_money(total)}")
 
+        if not self._cart:
+            self.complete_button.setText("COMPLETE SALE (ADD A PRODUCT)")
+            self.complete_button.setEnabled(False)
+        else:
+            self.complete_button.setText("COMPLETE SALE")
+            self.complete_button.setEnabled(True)
+
     # --- scanning --------------------------------------------------------- #
 
     def _on_scan(self, barcode: str) -> None:

@@ -55,38 +55,46 @@ QFrame#kpiCardNeg {{
 class _KPICard(QFrame):
     """A single KPI tile showing a label and a value."""
 
-    def __init__(self, label: str, accent: str = C.ACCENT, parent=None) -> None:
+    def __init__(self, label: str, accent: str = C.ACCENT, primary: bool = False, parent=None) -> None:
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setObjectName("kpiCard")
+        bg_color = accent if primary else C.CARD
+        text_color = C.ON_PRIMARY if primary else C.FG
+        label_color = C.ON_PRIMARY if primary else C.MUTED_FG
+        
+        border_top = "none" if primary else f"3px solid {accent}"
+        border_full = f"1px solid {accent}" if primary else f"1px solid {C.BORDER_LIGHT}"
+
         self.setStyleSheet(f"""
             QFrame#kpiCard {{
-                background-color: {C.CARD};
-                border: 1px solid {C.BORDER_LIGHT};
+                background-color: {bg_color};
+                border: {border_full};
                 border-radius: {S.RADIUS_MD};
-                border-top: 3px solid {accent};
+                border-top: {border_top};
             }}
         """)
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 14)
+        layout.setContentsMargins(20, 20, 20, 20) if primary else layout.setContentsMargins(16, 12, 16, 14)
         layout.setSpacing(4)
 
         self._label = QLabel(label, self)
         self._label.setStyleSheet(f"""
-            font-size: {F.SIZE_XS};
+            font-size: {F.SIZE_SM if primary else F.SIZE_XS};
             font-weight: {F.WEIGHT_SEMIBOLD};
-            color: {C.MUTED_FG};
+            color: {label_color};
             background: transparent;
             letter-spacing: 0.5px;
         """)
         layout.addWidget(self._label)
 
+        val_size = F.SIZE_4XL if primary else F.SIZE_XL
         self._value = QLabel("\u20A60", self)
         self._value.setStyleSheet(f"""
-            font-size: {F.SIZE_XL};
+            font-size: {val_size};
             font-weight: {F.WEIGHT_BOLD};
-            color: {C.FG};
+            color: {text_color};
             background: transparent;
         """)
         layout.addWidget(self._value)
@@ -134,18 +142,19 @@ class DashboardPage(QWidget):
         kpi_grid = QGridLayout()
         kpi_grid.setSpacing(16)
 
-        self.kpi_sales = _KPICard("TOTAL SALES (TODAY)", C.ACCENT)
+        self.kpi_sales = _KPICard("TOTAL SALES (TODAY)", C.PRIMARY_DARK, primary=True)
         self.kpi_gross_profit = _KPICard("GROSS PROFIT", C.ACCENT)
         self.kpi_net_profit = _KPICard("NET PROFIT", C.SUCCESS)
         self.kpi_transactions = _KPICard("TRANSACTIONS", C.PRIMARY)
         self.kpi_pos = _KPICard("BANK POS", "#0369A1")
         self.kpi_transfer = _KPICard("BANK TRANSFER", "#7C3AED")
 
-        kpi_grid.addWidget(self.kpi_sales, 0, 0)
-        kpi_grid.addWidget(self.kpi_gross_profit, 0, 1)
-        kpi_grid.addWidget(self.kpi_net_profit, 0, 2)
-        kpi_grid.addWidget(self.kpi_transactions, 0, 3)
-        kpi_grid.addWidget(self.kpi_pos, 1, 0, 1, 2)
+        kpi_grid.addWidget(self.kpi_sales, 0, 0, 1, 2)
+        kpi_grid.addWidget(self.kpi_gross_profit, 0, 2)
+        kpi_grid.addWidget(self.kpi_net_profit, 0, 3)
+        
+        kpi_grid.addWidget(self.kpi_transactions, 1, 0, 1, 1)
+        kpi_grid.addWidget(self.kpi_pos, 1, 1, 1, 1)
         kpi_grid.addWidget(self.kpi_transfer, 1, 2, 1, 2)
         
         for col in range(4):

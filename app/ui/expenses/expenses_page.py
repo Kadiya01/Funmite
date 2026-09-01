@@ -105,7 +105,10 @@ class ExpensesPage(QWidget):
                     expense.expense_date.strftime("%d/%m/%Y"),
                 ]
             ):
-                self.table.setItem(row, column, QTableWidgetItem(value))
+                item = QTableWidgetItem(value)
+                if column == 1:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.table.setItem(row, column, item)
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, expense.id)
             total += expense.amount
         self.count_label.setText(f"{len(expenses)} expense(s) — Total: {format_money(total)}")

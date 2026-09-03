@@ -370,6 +370,42 @@ QComboBox QAbstractItemView {{
     outline: none;
 }}
 
+QSpinBox::up-button, QSpinBox::down-button {{
+    subcontrol-origin: border;
+    subcontrol-position: center right;
+    width: 28px;
+    border: none;
+    border-left: 1px solid {C.BORDER};
+    border-radius: 0 {S.RADIUS_SM} {S.RADIUS_SM} 0;
+    background-color: {C.MUTED};
+}}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
+    background-color: {C.ACCENT_LIGHT};
+}}
+QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {{
+    background-color: {C.ACCENT};
+}}
+QSpinBox::up-arrow {{
+    image: none;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid {C.FG};
+}}
+QSpinBox::down-arrow {{
+    image: none;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid {C.FG};
+}}
+QSpinBox::up-arrow:disabled, QSpinBox::down-arrow:disabled {{
+    border-bottom-color: {C.MUTED_FG};
+    border-top-color: {C.MUTED_FG};
+}}
+
 QDateEdit::drop-down {{
     subcontrol-origin: padding;
     subcontrol-position: center right;

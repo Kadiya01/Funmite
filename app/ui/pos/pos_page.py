@@ -290,7 +290,7 @@ class PosPage(QWidget):
         self.cart_table.verticalHeader().setVisible(False)
         self.cart_table.setAlternatingRowColors(True)
         self.cart_table.setShowGrid(False)
-        self.cart_table.verticalHeader().setDefaultSectionSize(42)
+        self.cart_table.verticalHeader().setDefaultSectionSize(46)
         header = self.cart_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

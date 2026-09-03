@@ -112,6 +112,72 @@ def test_list_is_ordered_by_name(session):
     assert names == ["Ali", "Zainab"]
 
 
+# --- deactivate / activate (Phase 12) --------------------------------------- #
+
+
+def test_deactivate_flips_active_and_excludes_from_default_list(session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session, name="Old Customer")
+    session.flush()
+    service = CustomerService(session)
+    service.deactivate(admin, customer.id)
+    session.flush()
+    assert customer.is_active is False
+    assert [c.id for c in service.list()] == []
+    assert [c.id for c in service.list(include_inactive=True)] == [customer.id]
+
+
+def test_activate_restores_customer_to_active_list(session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session, name="Back")
+    session.flush()
+    service = CustomerService(session)
+    service.deactivate(admin, customer.id)
+    session.flush()
+    service.activate(admin, customer.id)
+    session.flush()
+    assert customer.is_active is True
+    assert [c.id for c in service.list()] == [customer.id]
+
+
+def test_deactivate_is_idempotent(session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session, name="Once")
+    session.flush()
+    service = CustomerService(session)
+    service.deactivate(admin, customer.id)
+    session.flush()
+    assert service.deactivate(admin, customer.id).id == customer.id
+    assert customer.is_active is False
+
+
+def test_deactivate_requires_admin(session):
+    cashier = make_user(session, role=ROLE_CASHIER)
+    customer = make_customer(session, name="X")
+    session.flush()
+    with pytest.raises(AuthorizationError):
+        CustomerService(session).deactivate(cashier, customer.id)
+
+
+def test_activate_requires_admin(session):
+    cashier = make_user(session, role=ROLE_CASHIER)
+    customer = make_customer(session, name="Y")
+    session.flush()
+    with pytest.raises(AuthorizationError):
+        CustomerService(session).activate(cashier, customer.id)
+
+
+def test_deactivated_customer_search_excluded_by_default(session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session, name="Hiding")
+    session.flush()
+    service = CustomerService(session)
+    service.deactivate(admin, customer.id)
+    session.flush()
+    assert [c.id for c in service.search("Hiding")] == []
+    assert [c.id for c in service.search("Hiding", include_inactive=True)] == [customer.id]
+
+
 # --- create_for_sale (Phase 05) -------------------------------------------- #
 
 

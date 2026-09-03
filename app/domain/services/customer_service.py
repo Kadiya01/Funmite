@@ -153,11 +153,53 @@ class CustomerService:
     def get_by_code(self, customer_code: str) -> Customer | None:
         return self.repo.get_by_customer_code(customer_code)
 
-    def search(self, query: str, *, limit: int = 50) -> list[Customer]:
-        return self.repo.search(query, limit=limit)
+    def search(self, query: str, *, limit: int = 50, include_inactive: bool = False) -> list[Customer]:
+        return self.repo.search(query, limit=limit, include_inactive=include_inactive)
 
-    def list(self) -> list[Customer]:
-        return self.repo.list_all()
+    def list(self, *, include_inactive: bool = False) -> list[Customer]:
+        return self.repo.list_all(include_inactive=include_inactive)
+
+    def deactivate(self, user, customer_id: int) -> Customer:
+        """Soft-deactivate a customer (Admin only).
+
+        The record is kept for historical sales/exchanges; it is just no
+        longer selectable for new sales. Never hard-deletes.
+        """
+        require_permission(user, CAP_MANAGE_CUSTOMERS)
+        customer = self.get(customer_id)
+        if not customer.is_active:
+            return customer
+        customer.is_active = False
+        self.session.flush()
+        self._sync().enqueue_update("customer", customer.id, {
+            "sync_uuid": customer.sync_uuid,
+            "customer_code": customer.customer_code,
+            "name": customer.name,
+            "phone": customer.phone,
+            "address": customer.address,
+            "is_active": customer.is_active,
+            "version": customer.version,
+        })
+        return customer
+
+    def activate(self, user, customer_id: int) -> Customer:
+        """Re-enable a previously deactivated customer (Admin only)."""
+        require_permission(user, CAP_MANAGE_CUSTOMERS)
+        customer = self.get(customer_id)
+        if customer.is_active:
+            return customer
+        customer.is_active = True
+        self.session.flush()
+        self._sync().enqueue_update("customer", customer.id, {
+            "sync_uuid": customer.sync_uuid,
+            "customer_code": customer.customer_code,
+            "name": customer.name,
+            "phone": customer.phone,
+            "address": customer.address,
+            "is_active": customer.is_active,
+            "version": customer.version,
+        })
+        return customer
 
     def _next_customer_code(self) -> str:
         current = self.repo.max_code_number(CUSTOMER_CODE_PREFIX)

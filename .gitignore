@@ -20,9 +20,9 @@ venv/
 *.db
 *.sqlite
 *.sqlite3
-data/
-backups/
-logs/
+/data/
+/backups/
+/logs/
 
 # Build / packaging
 build/

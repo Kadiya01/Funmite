@@ -1,4 +1,10 @@
-"""Customers page: list, search and register/edit customers (Admin)."""
+"""Customers page: list, search and register/edit customers (Admin).
+
+Includes soft deactivation: an Admin can deactivate (and later re-activate) a
+customer. Deactivated customers remain in the system for historical
+sales/exchanges but are no longer selectable for new sales. Customers are
+never hard-deleted.
+"""
 
 from __future__ import annotations
 
@@ -48,17 +54,20 @@ class CustomersPage(QWidget):
         toolbar = QHBoxLayout()
         self.add_button = QPushButton("+ Add Customer")
         self.add_button.setObjectName("btnPrimary")
+        self.deactivate_button = QPushButton("Deactivate")
+        self.deactivate_button.setObjectName("btnSecondary")
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search by name or phone...")
         self.search_input.setClearButtonEnabled(True)
         self.search_input.textChanged.connect(lambda _: self.refresh())
         toolbar.addWidget(self.add_button)
+        toolbar.addWidget(self.deactivate_button)
         toolbar.addWidget(QLabel("Search:"))
         toolbar.addWidget(self.search_input, 1)
         layout.addLayout(toolbar)
 
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Name", "Code", "Phone", "Address"])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Name", "Code", "Phone", "Address", "Status"])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -83,25 +92,36 @@ class CustomersPage(QWidget):
         layout.addWidget(self.count_label)
 
         self.add_button.clicked.connect(self.add_customer)
+        self.deactivate_button.clicked.connect(self.toggle_deactivate)
 
         self.refresh()
 
     def refresh(self) -> None:
         query = self.search_input.text().strip()
         with session_scope(self.session_factory) as session:
-            customers = CustomerRepository(session).search(query, limit=200)
+            customers = CustomerRepository(session).search(query, limit=200, include_inactive=True)
         self._customers = customers
         self.table.setRowCount(0)
         for customer in customers:
             row = self.table.rowCount()
             self.table.insertRow(row)
-            for column, value in enumerate(
-                [customer.name, customer.customer_code, customer.phone or "", customer.address or ""]
-            ):
-                self.table.setItem(row, column, QTableWidgetItem(value))
+            values = [
+                customer.name,
+                customer.customer_code,
+                customer.phone or "",
+                customer.address or "",
+                "Inactive" if not customer.is_active else "",
+            ]
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                if not customer.is_active:
+                    item.setForeground(Qt.GlobalColor.gray)
+                self.table.setItem(row, column, item)
             self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, customer.id)
-        self.count_label.setText(f"{len(customers)} customer(s)")
+        active = sum(1 for c in customers if c.is_active)
+        self.count_label.setText(f"{len(customers)} customer(s) — {active} active")
         self.empty_label.setVisible(len(customers) == 0)
+        self.deactivate_button.setText("Deactivate" if self._has_selected_active() else "Reactivate")
 
     def _selected(self):
         by_id = {customer.id: customer for customer in self._customers}
@@ -111,10 +131,45 @@ class CustomersPage(QWidget):
             if customer_id in by_id:
                 yield by_id[customer_id]
 
+    def _has_selected_active(self) -> bool:
+        for customer in self._selected():
+            if customer.is_active:
+                return True
+        return False
+
     def add_customer(self) -> None:
         dialog = CustomerFormDialog(save_handler=self._create_handler())
         if dialog.exec():
             self.refresh()
+
+    def toggle_deactivate(self) -> None:
+        selected = list(self._selected())
+        if not selected:
+            QMessageBox.information(self, "No selection", "Select a customer row first.")
+            return
+        customer = selected[0]
+        verb = "deactivate" if customer.is_active else "reactivate"
+        result = QMessageBox.question(
+            self,
+            f"{verb.capitalize()} customer",
+            f"Are you sure you want to {verb} '{customer.name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
+            return
+        self._deactivate_handler()(customer.id)
+        self.refresh()
+
+    def _deactivate_handler(self):
+        """Return a handler that deactivates/reactivates a customer by id."""
+        def handler(customer_id: int) -> None:
+            with session_scope(self.session_factory) as session:
+                service = CustomerService(session)
+                customer = service.get(customer_id)
+                (service.deactivate if customer.is_active else service.activate)(
+                    self.current_user, customer_id
+                )
+        return handler
 
     def edit_selected(self) -> None:
         selected = list(self._selected())

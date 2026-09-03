@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from app.data.db import session_scope
 from app.data.models import ROLE_ADMIN
 from app.domain.services.customer_service import CustomerService
@@ -21,9 +22,9 @@ def _admin_user(session) -> CurrentUser:
     )
 
 
-def _create_customer(session_factory, user: CurrentUser, **kwargs) -> None:
+def _create_customer(session_factory, user: CurrentUser, **kwargs):
     with session_scope(session_factory) as session:
-        CustomerService(session).create(
+        return CustomerService(session).create(
             user,
             name=kwargs.get("name", "Customer"),
             phone=kwargs.get("phone"),
@@ -40,7 +41,7 @@ def test_page_lists_customers(qtbot, session_factory, session):
     qtbot.addWidget(page)
 
     assert page.table.rowCount() == 2
-    assert page.count_label.text() == "2 customer(s)"
+    assert page.count_label.text() == "2 customer(s) — 2 active"
 
 
 def test_search_filters_customers(qtbot, session_factory, session):
@@ -75,3 +76,20 @@ def test_create_handler_registers_customer(session_factory, session):
         customers = CustomerRepository(check).search("New Customer")
         assert len(customers) == 1
         assert customers[0].customer_code.startswith("CUS-")
+
+
+def test_deactivate_handler_marks_inactive(qtbot, session_factory, session):
+    current_user = _admin_user(session)
+    _create_customer(session_factory, current_user, name="Old")
+    page = CustomersPage(session_factory, current_user)
+    qtbot.addWidget(page)
+
+    customer_id = page.table.item(0, 0).data(Qt.ItemDataRole.UserRole)
+    page._deactivate_handler()(customer_id)
+
+    with session_factory() as check:
+        from app.data.repositories.customer_repository import CustomerRepository
+
+        fresh = CustomerRepository(check).get(customer_id)
+        assert fresh.is_active is False
+        assert CustomerRepository(check).search("Old") == []

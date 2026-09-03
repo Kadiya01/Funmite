@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from PySide6.QtCore import Qt
 from sqlalchemy import select
 
 from app.data.db import session_scope
@@ -244,6 +245,63 @@ def test_quantity_spin_updates_total(qtbot, session_factory, session):
 
     assert page._cart[0]["quantity"] == 3
     assert "₦3,000" in page.total_label.text()
+
+
+def test_increment_button_increases_quantity(qtbot, session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    product = make_product(session, make_category(session), selling_price="1000", quantity=5)
+    product.barcode = "1007"
+    session.commit()
+
+    page = _page(session_factory, admin)
+    qtbot.addWidget(page)
+    _scan(page, "1007")
+    spin = page.cart_table.cellWidget(0, 1)
+    assert spin.value() == 1
+
+    qtbot.mouseClick(spin.lineEdit(), Qt.MouseButton.LeftButton)
+    spin.lineEdit().selectAll()
+    qtbot.keyClick(spin.lineEdit(), Qt.Key.Key_Up)
+    assert page._cart[0]["quantity"] == 2
+    assert "₦2,000" in page.total_label.text()
+
+
+def test_decrement_button_decreases_quantity(qtbot, session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    product = make_product(session, make_category(session), selling_price="500", quantity=10)
+    product.barcode = "1008"
+    session.commit()
+
+    page = _page(session_factory, admin)
+    qtbot.addWidget(page)
+    _scan(page, "1008")
+    spin = page.cart_table.cellWidget(0, 1)
+    spin.setValue(3)
+    assert page._cart[0]["quantity"] == 3
+
+    qtbot.mouseClick(spin.lineEdit(), Qt.MouseButton.LeftButton)
+    qtbot.keyClick(spin.lineEdit(), Qt.Key.Key_Down)
+    assert page._cart[0]["quantity"] == 2
+    assert "₦1,000" in page.total_label.text()
+
+
+def test_quantity_cannot_go_below_one(qtbot, session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    product = make_product(session, make_category(session), selling_price="1000", quantity=5)
+    product.barcode = "1009"
+    session.commit()
+
+    page = _page(session_factory, admin)
+    qtbot.addWidget(page)
+    _scan(page, "1009")
+    spin = page.cart_table.cellWidget(0, 1)
+    assert spin.value() == 1
+    spin.setMinimum(1)
+
+    qtbot.mouseClick(spin.lineEdit(), Qt.MouseButton.LeftButton)
+    qtbot.keyClick(spin.lineEdit(), Qt.Key.Key_Down)
+    assert spin.value() == 1
+    assert page._cart[0]["quantity"] == 1
 
 
 def test_new_sale_resets_cart(qtbot, session_factory, session):

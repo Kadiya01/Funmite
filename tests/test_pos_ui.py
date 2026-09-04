@@ -309,6 +309,22 @@ def test_quantity_cannot_go_below_one(qtbot, session_factory, session):
     assert page._cart[0]["quantity"] == 1
 
 
+def test_quantity_spin_max_equals_available_stock(qtbot, session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    product = make_product(session, make_category(session), selling_price="1000", quantity=5)
+    product.barcode = "1010"
+    session.commit()
+
+    page = _page(session_factory, admin)
+    qtbot.addWidget(page)
+    _scan(page, "1010")
+    spin = page.cart_table.cellWidget(0, 1)
+    assert spin.minimum() == 1
+    assert spin.maximum() == 5
+    spin.setValue(99)
+    assert spin.value() == 5
+
+
 def test_new_sale_resets_cart(qtbot, session_factory, session):
     admin = make_user(session, role=ROLE_ADMIN)
     product = make_product(session, make_category(session), quantity=5)

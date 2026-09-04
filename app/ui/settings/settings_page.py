@@ -30,6 +30,7 @@ from app.config import load_settings
 from app.data.db import session_scope
 from app.domain.services.backup_service import BackupService
 from app.domain.session import CurrentUser
+from app.printing.printer import PrinterConfigStore
 from app.ui.theme import C, F, S
 from app.utils.formatting import format_file_size
 
@@ -111,6 +112,47 @@ class SettingsPage(QWidget):
         backup_layout.addWidget(self.backup_count_label)
 
         layout.addWidget(backup_group, 1)
+
+        # -- Receipt printing section ------------------------------------------ #
+
+        printing_group = QGroupBox("RECEIPT PRINTING")
+        printing_layout = QVBoxLayout(printing_group)
+        printing_layout.setSpacing(12)
+
+        printing_info = QLabel(
+            "Choose the Windows thermal printer that prints receipts after each sale. "
+            "If left empty, receipts are not printed (Reprint stays available)."
+        )
+        printing_info.setWordWrap(True)
+        printing_info.setStyleSheet(f"color: {C.MUTED_FG};")
+        printing_layout.addWidget(printing_info)
+
+        printer_row = QHBoxLayout()
+        printer_row.addWidget(QLabel("Printer name:"))
+        self.printer_name_input = QLineEdit()
+        self.printer_name_input.setPlaceholderText(
+            "e.g. Xprinter XP-370B"
+        )
+        printer_row.addWidget(self.printer_name_input, 1)
+        printing_layout.addLayout(printer_row)
+
+        self.printer_hint_label = QLabel("")
+        self.printer_hint_label.setStyleSheet(f"color: {C.MUTED_FG};")
+        printing_layout.addWidget(self.printer_hint_label)
+
+        printer_buttons = QHBoxLayout()
+        self.save_printer_button = QPushButton("Save Printer")
+        self.save_printer_button.setObjectName("btnPrimary")
+        self.save_printer_button.clicked.connect(self._on_save_printer)
+        printer_buttons.addWidget(self.save_printer_button)
+        self.clear_printer_button = QPushButton("Clear (no printing)")
+        self.clear_printer_button.setObjectName("btnSecondary")
+        self.clear_printer_button.clicked.connect(self._on_clear_printer)
+        printer_buttons.addWidget(self.clear_printer_button)
+        printer_buttons.addStretch()
+        printing_layout.addLayout(printer_buttons)
+
+        layout.addWidget(printing_group)
 
         # -- Restore section ------------------------------------------------ #
 
@@ -208,6 +250,7 @@ class SettingsPage(QWidget):
 
         # Initial load
         self.refresh()
+        self._load_printer_config()
 
     def refresh(self) -> None:
         """Reload the backup list and sync status."""
@@ -342,6 +385,41 @@ class SettingsPage(QWidget):
             )
         finally:
             self.restore_button.setEnabled(True)
+
+    def _load_printer_config(self) -> None:
+        """Populate the printer field from the persisted Settings-UI value."""
+        store = PrinterConfigStore(self._settings.data_dir)
+        self.printer_name_input.setText(store.load())
+        env_name = (self._settings.printer_name or "").strip()
+        if env_name and not store.load():
+            self.printer_hint_label.setText(
+                f"Using environment printer: {env_name}"
+            )
+        else:
+            self.printer_hint_label.setText("")
+
+    def _on_save_printer(self) -> None:
+        """Persist the Settings-UI printer name (primary configuration)."""
+        store = PrinterConfigStore(self._settings.data_dir)
+        store.save(self.printer_name_input.text().strip())
+        self._load_printer_config()
+        QMessageBox.information(
+            self,
+            "Printer Saved",
+            "The receipt printer has been saved.",
+        )
+
+    def _on_clear_printer(self) -> None:
+        """Clear the configured printer; falls back to the environment name."""
+        store = PrinterConfigStore(self._settings.data_dir)
+        store.clear()
+        self.printer_name_input.clear()
+        self._load_printer_config()
+        QMessageBox.information(
+            self,
+            "Printer Cleared",
+            "No printer is configured. Receipts will not be printed after sales.",
+        )
 
     def _refresh_sync_section(self) -> None:
         """Update the cloud sync section with current status."""

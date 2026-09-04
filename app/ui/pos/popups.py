@@ -14,19 +14,36 @@ from __future__ import annotations
 from PySide6.QtWidgets import QMessageBox
 
 from app.data.models import Product
+from app.printing.printer import PrinterState
 from app.ui.theme import C, F, S
 
 
-def show_sale_complete(parent, receipt_no: str, printed: bool) -> str:
-    """Ask what to do after a successful sale. Returns ``"print"`` or ``"new"``."""
+def show_sale_complete(parent, receipt_no: str, printed: bool, state: PrinterState) -> str:
+    """Ask what to do after a successful sale. Returns ``"print"`` or ``"new"``.
+
+    The message always makes clear that the sale itself completed and never
+    claims a receipt was printed when ``printed`` is False.
+    """
     box = QMessageBox(parent)
     box.setWindowTitle("Sale Complete")
     box.setIcon(QMessageBox.Icon.Information)
-    status = (
-        "The receipt has been printed."
-        if printed
-        else "The sale is saved, but the receipt could not be printed.\nUse Reprint when the printer is ready."
-    )
+    if printed:
+        status = "The receipt has been printed."
+    elif state == PrinterState.NOT_CONFIGURED:
+        status = (
+            "Printing is not configured. The sale is saved.\n"
+            "Set a printer in Settings, then use Reprint."
+        )
+    elif state == PrinterState.UNAVAILABLE:
+        status = (
+            "The sale is saved, but the printer is unavailable.\n"
+            "Use Reprint when the printer is ready."
+        )
+    else:
+        status = (
+            "The sale is saved, but the receipt could not be printed.\n"
+            "Use Reprint when the printer is ready."
+        )
     box.setText(f"Sale {receipt_no} completed.\n\n{status}")
     box.addButton("Print", QMessageBox.ButtonRole.AcceptRole)
     box.addButton("Reprint", QMessageBox.ButtonRole.AcceptRole)

@@ -41,7 +41,7 @@ from app.domain.services.audit_service import ACTION_LOGOUT, AuditService
 from app.domain.services.auth_service import AuthService
 from app.domain.session import CurrentUser
 from app.logging_config import setup_logging
-from app.printing.printer import NullPrinter
+from app.printing.printer import PrinterConfigStore, create_printer
 from app.sync.worker import SyncWorker
 from app.ui.customers import CustomersPage
 from app.ui.dashboard import DashboardPage
@@ -180,6 +180,10 @@ class MainWindow(QMainWindow):
             )
 
     def _build_navigation(self, current_user: CurrentUser) -> None:
+        settings = load_settings()
+        self.printer = create_printer(
+            settings, PrinterConfigStore(settings.data_dir)
+        )
         container = QWidget(self)
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -312,7 +316,7 @@ class MainWindow(QMainWindow):
             )
             self._add_page("Dashboard", dashboard)
 
-            pos = PosPage(self.session_factory, current_user, printer=NullPrinter())
+            pos = PosPage(self.session_factory, current_user, printer=self.printer)
             pos.add_product_requested.connect(
                 lambda _barcode: self.nav.setCurrentRow(self._nav_row("Products"))
             )
@@ -329,7 +333,7 @@ class MainWindow(QMainWindow):
             self._add_page("Settings", SettingsPage(self.session_factory, current_user, sync_worker=self.sync_worker))
         else:
             from app.ui.reports.my_sales_page import MySalesPage
-            self._add_page("POS", PosPage(self.session_factory, current_user, printer=NullPrinter()))
+            self._add_page("POS", PosPage(self.session_factory, current_user, printer=self.printer))
             self._add_page("My Sales", MySalesPage(self.session_factory, current_user))
 
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)

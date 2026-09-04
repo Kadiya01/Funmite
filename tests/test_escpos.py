@@ -61,8 +61,16 @@ def test_render_uses_centre_and_left_alignment():
     out = EscPosRenderer().render(data)
     assert ALIGN_CENTRE in out
     assert ALIGN_LEFT in out
-    assert EMPHASIS_ON not in out
-    assert EMPHASIS_OFF not in out
+
+
+def test_render_bolds_shop_header():
+    """The store header block is wrapped in emphasis on/off (bold header)."""
+    data = _receipt()
+    out = EscPosRenderer().render(data)
+    header = _encode_text(data.shop_name)
+    assert EMPHASIS_ON in out
+    assert EMPHASIS_OFF in out
+    assert out.index(EMPHASIS_ON) < out.index(header) < out.index(EMPHASIS_OFF)
 
 
 def test_render_ends_with_partial_cut():

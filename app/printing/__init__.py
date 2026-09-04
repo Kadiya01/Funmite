@@ -7,7 +7,16 @@ from app.printing.printer import (  # noqa: F401
     EscPosFilePrinter,
     InMemoryPrinter,
     NullPrinter,
+    PrinterConfigStore,
+    PrinterNotConfiguredError,
+    PrinterState,
+    PrinterUnavailableError,
+    PrinterWriteFailureError,
+    ReceiptPrintError,
     ReceiptPrinter,
+    WindowsPrinter,
+    create_printer,
+    resolve_printer_name,
 )
 from app.printing.receipt import (  # noqa: F401
     PAYMENT_LABELS,

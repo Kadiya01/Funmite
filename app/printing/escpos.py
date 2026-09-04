@@ -52,9 +52,11 @@ class EscPosRenderer:
         body_start = min(first_blank + 1, len(header_lines))
 
         out += ALIGN_CENTRE
+        out += EMPHASIS_ON
         for line in header_lines[:first_blank]:
             out += _encode_text(line)
             out += b"\x0a"
+        out += EMPHASIS_OFF
         out += ALIGN_LEFT
 
         for line in header_lines[body_start:]:

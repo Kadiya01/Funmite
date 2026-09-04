@@ -60,6 +60,12 @@ class Settings:
     api_host: str = field(default_factory=lambda: os.getenv("FUNMITE_API_HOST", "127.0.0.1"))
     api_port: int = field(default_factory=lambda: _env_int("FUNMITE_API_PORT", 8000))
 
+    # Thermal printer (Phase 12-F5). The Settings UI value wins over this
+    # environment fallback; see app/printing/printer.py (resolve_printer_name).
+    printer_name: str = field(
+        default_factory=lambda: os.getenv("FUNMITE_PRINTER_NAME", "").strip()
+    )
+
     # Cloud sync settings (Phase 10C)
     cloud_sync_enabled: bool = field(
         default_factory=lambda: os.getenv("FUNMITE_CLOUD_SYNC", "").lower() in ("1", "true", "yes")

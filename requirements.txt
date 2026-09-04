@@ -10,6 +10,10 @@ python-dotenv>=1.0
 # Barcode label rendering (Phase 03)
 python-barcode>=0.15
 
+# Windows thermal printer spooler access (Phase 12-F5). Only used on the target
+# Windows deployment; imported lazily so other platforms/tests need not install it.
+pywin32>=306; platform_system == "Windows"
+
 # Testing
 pytest>=8.0
 pytest-qt>=4.4

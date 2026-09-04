@@ -53,7 +53,7 @@ from app.domain.services.product_service import ProductService
 from app.domain.services.receipt_service import ReceiptService
 from app.domain.services.sale_service import SaleService
 from app.domain.session import CurrentUser
-from app.printing.printer import NullPrinter, ReceiptPrinter
+from app.printing.printer import NullPrinter, PrinterNotConfiguredError, PrinterState, ReceiptPrinter
 from app.ui.pos.popups import (
     show_barcode_not_found,
     show_insufficient_stock,
@@ -752,15 +752,22 @@ class PosPage(QWidget):
         except Exception:
             printed = False
         self.last_receipt = receipt
+        state = getattr(self.printer, "state", PrinterState.NOT_CONFIGURED)
 
         self._notify_sold_low_stock(sold_items)
 
-        action = self.sale_complete_popup(self, receipt_no, printed)
+        action = self.sale_complete_popup(self, receipt_no, printed, state)
         if action == "new":
             self._reset_cart()
         elif self.last_receipt is not None:
             try:
                 self.printer.print_receipt(self.last_receipt)
+            except PrinterNotConfiguredError:
+                QMessageBox.warning(
+                    self,
+                    "Printing not configured",
+                    "No receipt printer is configured. Set one in Settings to print receipts.",
+                )
             except Exception:
                 QMessageBox.warning(
                     self,

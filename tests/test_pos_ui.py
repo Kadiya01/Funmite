@@ -24,7 +24,12 @@ from app.data.models import (
 )
 from app.domain.services.sale_service import SaleService
 from app.domain.session import CurrentUser
-from app.printing.printer import InMemoryPrinter
+from app.printing.printer import (
+    InMemoryPrinter,
+    NullPrinter,
+    PrinterState,
+    PrinterWriteFailureError,
+)
 from app.ui.pos.pos_page import OFFLINE_STATUS, PosPage
 from tests.factories import make_category, make_customer, make_product, make_user
 
@@ -542,6 +547,219 @@ def test_print_failure_keeps_sale(qtbot, session_factory, session):
     with session_factory() as check:
         assert check.scalar(select(Sale)) is not None
     assert page.last_receipt is not None
+
+
+# --- printer feedback (Phase 12-F5) ---------------------------------------- #
+
+
+def _capturing_popup(captured):
+    def popup(parent, receipt_no, printed, state):
+        captured.append((printed, state))
+        return "new"
+
+    return popup
+
+
+def test_print_attempt_happens_after_sale_commit(qtbot, session_factory, session):
+    """Printing only starts once the sale is already persisted (commit before print)."""
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session)
+    product = make_product(session, make_category(session), quantity=5)
+    product.barcode = "3010"
+    session.commit()
+
+    seen = {"exists": None}
+
+    class CheckingPrinter:
+        state = PrinterState.AVAILABLE
+
+        def print_receipt(self, receipt):
+            with session_factory() as check:
+                seen["exists"] = (
+                    check.scalar(select(Sale).where(Sale.receipt_no == receipt.receipt_no))
+                    is not None
+                )
+
+    page = _page(session_factory, admin, printer=CheckingPrinter(), sale_complete_popup=_popup_new)
+    qtbot.addWidget(page)
+    _scan(page, "3010")
+    _select_customer(page, customer)
+
+    with qtbot.waitSignal(page.sale_completed, timeout=1000):
+        page.complete_button.click()
+
+    assert seen["exists"] is True
+
+
+def test_print_success_reports_success(qtbot, session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session)
+    product = make_product(session, make_category(session), quantity=5)
+    product.barcode = "3011"
+    session.commit()
+    captured = []
+
+    page = _page(
+        session_factory,
+        admin,
+        printer=InMemoryPrinter(),
+        sale_complete_popup=_capturing_popup(captured),
+    )
+    qtbot.addWidget(page)
+    _scan(page, "3011")
+    _select_customer(page, customer)
+
+    with qtbot.waitSignal(page.sale_completed, timeout=1000):
+        page.complete_button.click()
+
+    assert captured == [(True, PrinterState.AVAILABLE)]
+
+
+def test_print_failure_reports_failure_and_keeps_sale_and_inventory(qtbot, session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session)
+    product = make_product(session, make_category(session), quantity=5)
+    product.barcode = "3012"
+    session.commit()
+    captured = []
+
+    class BrokenPrinter:
+        def print_receipt(self, receipt):
+            self.state = PrinterState.FAILED
+            raise OSError("out of paper")
+
+    page = _page(
+        session_factory,
+        admin,
+        printer=BrokenPrinter(),
+        sale_complete_popup=_capturing_popup(captured),
+    )
+    qtbot.addWidget(page)
+    _scan(page, "3012")
+    _select_customer(page, customer)
+
+    with qtbot.waitSignal(page.sale_completed, timeout=1000):
+        page.complete_button.click()
+
+    assert captured == [(False, PrinterState.FAILED)]
+    with session_factory() as check:
+        assert check.scalar(select(Sale)) is not None
+        assert check.get(type(product), product.id).quantity == 4
+    assert page.error_label.isHidden()
+
+
+def test_unconfigured_printer_reports_not_configured(qtbot, session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session)
+    product = make_product(session, make_category(session), quantity=5)
+    product.barcode = "3013"
+    session.commit()
+    captured = []
+
+    page = _page(
+        session_factory,
+        admin,
+        printer=NullPrinter(),
+        sale_complete_popup=_capturing_popup(captured),
+    )
+    qtbot.addWidget(page)
+    _scan(page, "3013")
+    _select_customer(page, customer)
+
+    with qtbot.waitSignal(page.sale_completed, timeout=1000):
+        page.complete_button.click()
+
+    assert captured == [(False, PrinterState.NOT_CONFIGURED)]
+    with session_factory() as check:
+        assert check.scalar(select(Sale)) is not None
+
+
+def test_printer_failure_does_not_fail_the_transaction(qtbot, session_factory, session):
+    """A printer failure must never turn a completed sale into a failed one."""
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session)
+    product = make_product(session, make_category(session), quantity=3)
+    product.barcode = "3014"
+    session.commit()
+    captured = []
+
+    class BrokenPrinter:
+        def print_receipt(self, receipt):
+            raise PrinterWriteFailureError("boom")
+
+    page = _page(
+        session_factory,
+        admin,
+        printer=BrokenPrinter(),
+        sale_complete_popup=_capturing_popup(captured),
+    )
+    qtbot.addWidget(page)
+    _scan(page, "3014")
+    _select_customer(page, customer)
+
+    with qtbot.waitSignal(page.sale_completed, timeout=1000):
+        page.complete_button.click()
+
+    assert captured[0][0] is False
+    with session_factory() as check:
+        sale = check.scalar(select(Sale))
+        assert sale is not None and sale.total > 0
+
+
+# --- sale-complete popup message (Phase 12-F5) ----------------------------- #
+
+
+def _exec_capturing_popup(monkeypatch, captured):
+    from app.ui.pos import popups
+
+    def exec_dialog(box):
+        captured.append(box.text())
+        for button in box.buttons():
+            if button.text() == "New Sale":
+                button.click()
+                break
+        return box.result()
+
+    monkeypatch.setattr(popups.QMessageBox, "exec", exec_dialog)
+
+
+def test_popup_printed_message_when_printed(qtbot, monkeypatch):
+    from app.ui.pos import popups
+
+    captured = []
+    _exec_capturing_popup(monkeypatch, captured)
+    popups.show_sale_complete(None, "FUN-20260101-001", True, PrinterState.AVAILABLE)
+    assert "The receipt has been printed." in captured[0]
+
+
+def test_popup_not_configured_message_when_not_configured(qtbot, monkeypatch):
+    from app.ui.pos import popups
+
+    captured = []
+    _exec_capturing_popup(monkeypatch, captured)
+    popups.show_sale_complete(None, "FUN-20260101-001", False, PrinterState.NOT_CONFIGURED)
+    assert "Printing is not configured." in captured[0]
+    assert "The receipt has been printed." not in captured[0]
+
+
+def test_popup_unavailable_message(qtbot, monkeypatch):
+    from app.ui.pos import popups
+
+    captured = []
+    _exec_capturing_popup(monkeypatch, captured)
+    popups.show_sale_complete(None, "FUN-20260101-001", False, PrinterState.UNAVAILABLE)
+    assert "printer is unavailable" in captured[0]
+    assert "The receipt has been printed." not in captured[0]
+
+
+def test_popup_failed_message(qtbot, monkeypatch):
+    from app.ui.pos import popups
+
+    captured = []
+    _exec_capturing_popup(monkeypatch, captured)
+    popups.show_sale_complete(None, "FUN-20260101-001", False, PrinterState.FAILED)
+    assert "could not be printed" in captured[0]
+    assert "The receipt has been printed." not in captured[0]
 
 
 # --- reprint ---------------------------------------------------------------- #

@@ -108,9 +108,9 @@ class TestSyncMetadataColumns:
         cols = {c["name"] for c in inspect(engine).get_columns("sync_queue")}
         assert "device_id" in cols
 
-    def test_migration_version_is_3(self, engine):
+    def test_migration_version_is_4(self, engine):
         from app.data.migrations import runner
-        assert runner.current_version(engine) == 3
+        assert runner.current_version(engine) == 4
 
 
 # ---------------------------------------------------------------------------

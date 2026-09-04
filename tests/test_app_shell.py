@@ -18,6 +18,7 @@ from app.ui.purchases import PurchasesPage
 from app.ui.reports.reports_page import ReportsPage
 from app.ui.settings.settings_page import SettingsPage
 from app.ui.suppliers import SuppliersPage
+from app.ui.users import UsersPage
 
 
 def test_main_window_creates(qtbot):
@@ -84,20 +85,21 @@ def test_admin_window_shows_admin_navigation(qtbot, session_factory):
 
     nav_items = [window.nav.item(i).text() for i in range(window.nav.count())]
     assert nav_items == [
-        "Dashboard", "POS", "Products", "Inventory", "Customers",
+        "Dashboard", "POS", "Products", "Inventory", "Customers", "Users",
         "Purchases", "Suppliers", "Expenses", "Reports", "Settings",
     ]
-    assert window.stack.count() == 10
+    assert window.stack.count() == 11
     assert isinstance(window.stack.widget(0), DashboardPage)
     assert isinstance(window.stack.widget(1), PosPage)
     assert isinstance(window.stack.widget(2), ProductsPage)
     assert isinstance(window.stack.widget(3), InventoryPage)
     assert isinstance(window.stack.widget(4), CustomersPage)
-    assert isinstance(window.stack.widget(5), PurchasesPage)
-    assert isinstance(window.stack.widget(6), SuppliersPage)
-    assert isinstance(window.stack.widget(7), ExpensesPage)
-    assert isinstance(window.stack.widget(8), ReportsPage)
-    assert isinstance(window.stack.widget(9), SettingsPage)
+    assert isinstance(window.stack.widget(5), UsersPage)
+    assert isinstance(window.stack.widget(6), PurchasesPage)
+    assert isinstance(window.stack.widget(7), SuppliersPage)
+    assert isinstance(window.stack.widget(8), ExpensesPage)
+    assert isinstance(window.stack.widget(9), ReportsPage)
+    assert isinstance(window.stack.widget(10), SettingsPage)
 
 
 def test_dashboard_view_stock_switches_to_inventory(qtbot, session_factory):
@@ -133,5 +135,5 @@ def test_app_controller_passes_session_factory_to_window(qtbot, session_factory,
     window = controller._window
     assert window is not None
     assert window.session_factory is session_factory
-    assert window.stack.count() == 10
+    assert window.stack.count() == 11
     window.close()

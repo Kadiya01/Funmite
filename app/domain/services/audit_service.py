@@ -28,6 +28,11 @@ ACTION_PASSWORD_CHANGE = "PASSWORD_CHANGE"
 ACTION_PASSWORD_CHANGE_FAILED = "PASSWORD_CHANGE_FAILED"
 ACTION_BACKUP = "BACKUP"
 ACTION_RESTORE = "RESTORE"
+ACTION_USER_CREATED = "USER_CREATED"
+ACTION_USER_UPDATED = "USER_UPDATED"
+ACTION_USER_DEACTIVATED = "USER_DEACTIVATED"
+ACTION_USER_ACTIVATED = "USER_ACTIVATED"
+ACTION_PASSWORD_RESET = "PASSWORD_RESET"
 
 
 def _to_json(details: Any) -> str:
@@ -88,3 +93,38 @@ class AuditService:
 
     def password_change_failed(self, user: User) -> AuditLog:
         return self.record(user=user, action=ACTION_PASSWORD_CHANGE_FAILED)
+
+    def user_created(self, actor: User, target: User) -> AuditLog:
+        return self.record(
+            user=actor,
+            action=ACTION_USER_CREATED,
+            details={"user_id": target.id, "username": target.username, "role": target.role},
+        )
+
+    def user_updated(self, actor: User, target: User) -> AuditLog:
+        return self.record(
+            user=actor,
+            action=ACTION_USER_UPDATED,
+            details={"user_id": target.id, "username": target.username},
+        )
+
+    def user_deactivated(self, actor: User, target: User) -> AuditLog:
+        return self.record(
+            user=actor,
+            action=ACTION_USER_DEACTIVATED,
+            details={"user_id": target.id, "username": target.username},
+        )
+
+    def user_activated(self, actor: User, target: User) -> AuditLog:
+        return self.record(
+            user=actor,
+            action=ACTION_USER_ACTIVATED,
+            details={"user_id": target.id, "username": target.username},
+        )
+
+    def password_reset(self, actor: User, target: User) -> AuditLog:
+        return self.record(
+            user=actor,
+            action=ACTION_PASSWORD_RESET,
+            details={"user_id": target.id, "username": target.username},
+        )

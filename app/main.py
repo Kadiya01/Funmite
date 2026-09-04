@@ -54,6 +54,7 @@ from app.ui.purchases import PurchasesPage
 from app.ui.reports.reports_page import ReportsPage
 from app.ui.settings.settings_page import SettingsPage
 from app.ui.suppliers import SuppliersPage
+from app.ui.users import UsersPage
 from app.ui.theme import C, F, NAV_ICONS, S, darken, generate_stylesheet
 
 APP_TITLE = "Funmite POS"
@@ -320,6 +321,7 @@ class MainWindow(QMainWindow):
             self._add_page("Products", ProductsPage(self.session_factory, current_user))
             self._add_page("Inventory", InventoryPage(self.session_factory, current_user))
             self._add_page("Customers", CustomersPage(self.session_factory, current_user))
+            self._add_page("Users", UsersPage(self.session_factory, current_user))
             self._add_page("Purchases", PurchasesPage(self.session_factory, current_user))
             self._add_page("Suppliers", SuppliersPage(self.session_factory, current_user))
             self._add_page("Expenses", ExpensesPage(self.session_factory, current_user))

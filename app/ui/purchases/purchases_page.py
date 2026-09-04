@@ -109,6 +109,7 @@ class PurchasesPage(QWidget):
         dialog = PurchaseFormDialog(
             session_factory=self.session_factory,
             complete_handler=self._complete_handler(),
+            current_user=self.current_user,
         )
         if dialog.exec():
             self.refresh()

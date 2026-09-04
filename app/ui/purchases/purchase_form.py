@@ -32,6 +32,9 @@ from app.data.repositories.product_repository import ProductRepository
 from app.data.repositories.supplier_repository import SupplierRepository
 from app.domain.errors import ValidationError
 from app.domain.services.purchase_service import PurchaseLine
+from app.domain.services.supplier_service import SupplierService
+from app.domain.session import CurrentUser
+from app.ui.suppliers.supplier_form import SupplierFormDialog
 from app.utils.formatting import format_money
 
 
@@ -42,11 +45,13 @@ class PurchaseFormDialog(QDialog):
         self,
         session_factory,
         complete_handler: Callable[[dict], None],
+        current_user: CurrentUser,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self._session_factory = session_factory
         self._complete_handler = complete_handler
+        self.current_user = current_user
         self.completed = False
 
         self.setWindowTitle("Record Purchase")
@@ -61,6 +66,9 @@ class PurchaseFormDialog(QDialog):
         self.supplier_combo = QComboBox()
         self.supplier_combo.setMinimumWidth(200)
         supplier_row.addWidget(self.supplier_combo, 1)
+        self.add_supplier_button = QPushButton("+ Add Supplier")
+        self.add_supplier_button.setObjectName("btnSecondary")
+        supplier_row.addWidget(self.add_supplier_button)
         layout.addLayout(supplier_row)
 
         self.table = QTableWidget(0, 4)
@@ -130,6 +138,7 @@ class PurchaseFormDialog(QDialog):
 
         self.add_line_button.clicked.connect(self._add_line)
         self.complete_button.clicked.connect(self._complete)
+        self.add_supplier_button.clicked.connect(self._add_supplier)
         cancel_button.clicked.connect(self.reject)
 
         self._lines: list[dict] = []
@@ -140,9 +149,7 @@ class PurchaseFormDialog(QDialog):
         with self._session_factory() as session:
             suppliers = SupplierRepository(session).list_suppliers()
             products = ProductRepository(session).search("", limit=500)
-        self.supplier_combo.addItem("-- Select Supplier --", None)
-        for s in suppliers:
-            self.supplier_combo.addItem(s.name, s.id)
+        self._populate_suppliers(suppliers)
 
         self.product_combo.addItem("-- Select Product --", None)
         for p in products:
@@ -155,6 +162,43 @@ class PurchaseFormDialog(QDialog):
                 "name": p.name,
                 "cost_price": Decimal(str(p.cost_price)),
             }
+
+    def _populate_suppliers(self, suppliers: list) -> None:
+        """Reload the supplier combo. Item data is the supplier id (None = placeholder)."""
+        self.supplier_combo.blockSignals(True)
+        try:
+            self.supplier_combo.clear()
+            self.supplier_combo.addItem("-- Select Supplier --", None)
+            for s in suppliers:
+                self.supplier_combo.addItem(s.name, s.id)
+        finally:
+            self.supplier_combo.blockSignals(False)
+
+    def _add_supplier(self) -> None:
+        """Open the reusable supplier form and, on success, refresh + auto-select."""
+        dialog = SupplierFormDialog(save_handler=self._create_supplier_handler())
+        if not dialog.exec():
+            return
+        supplier = dialog.saved
+        if supplier is None:
+            return
+        with self._session_factory() as session:
+            suppliers = SupplierRepository(session).list_suppliers()
+        self._populate_suppliers(suppliers)
+        index = self.supplier_combo.findData(supplier.id)
+        if index >= 0:
+            self.supplier_combo.setCurrentIndex(index)
+
+    def _create_supplier_handler(self):
+        def handler(data: dict):
+            with session_scope(self._session_factory) as session:
+                return SupplierService(session).create_supplier(
+                    self.current_user,
+                    name=data["name"],
+                    phone=data["phone"] or None,
+                    address=data["address"] or None,
+                )
+        return handler
 
     def _add_line(self) -> None:
         self.error_label.setVisible(False)

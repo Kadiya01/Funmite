@@ -138,7 +138,13 @@ class WindowsPrinter(ReceiptPrinter):
 
     def _spooler(self):
         if self._win32print is None:
-            import win32print
+            try:
+                import win32print
+            except ImportError as exc:
+                self.state = PrinterState.UNAVAILABLE
+                raise PrinterUnavailableError(
+                    "The Windows print spooler (pywin32) is not installed."
+                ) from exc
 
             self._win32print = win32print
         return self._win32print

@@ -9,6 +9,7 @@ environment fallback) and the safe ``NullPrinter`` fallback.
 
 from __future__ import annotations
 
+import sys
 from decimal import Decimal
 
 import pytest
@@ -219,6 +220,14 @@ def test_null_printer_reports_not_configured():
     with pytest.raises(PrinterNotConfiguredError):
         printer.print_receipt(_receipt())
     assert printer.state == PrinterState.NOT_CONFIGURED
+
+
+def test_missing_win32print_is_unavailable_not_crash(monkeypatch):
+    monkeypatch.setitem(sys.modules, "win32print", None)
+    printer = WindowsPrinter("XP-80C")
+    with pytest.raises(PrinterUnavailableError, match="not installed"):
+        printer.print_receipt(_receipt())
+    assert printer.state == PrinterState.UNAVAILABLE
 
 
 # --- configuration --------------------------------------------------------- #

@@ -708,6 +708,7 @@ def test_printer_failure_does_not_fail_the_transaction(qtbot, session_factory, s
         admin,
         printer=BrokenPrinter(),
         sale_complete_popup=_capturing_popup(captured),
+        low_stock_notifier=lambda *args, **kwargs: None,
     )
     qtbot.addWidget(page)
     _scan(page, "3014")

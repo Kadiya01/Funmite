@@ -7,11 +7,14 @@ A restore always creates a pre-restore safety backup first.
 
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -24,13 +27,22 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
+    QFrame,
 )
 
 from app.config import load_settings
 from app.data.db import session_scope
+from app.data.models import PAYMENT_POS
 from app.domain.services.backup_service import BackupService
 from app.domain.session import CurrentUser
-from app.printing.printer import PrinterConfigStore
+from app.printing.escpos import EscPosRenderer
+from app.printing.printer import (
+    PrinterConfigStore,
+    PrinterUnavailableError,
+    PrinterWriteFailureError,
+    WindowsPrinter,
+)
+from app.printing.receipt import ReceiptData, ReceiptLine
 from app.ui.theme import C, F, S
 from app.utils.formatting import format_file_size
 
@@ -74,10 +86,11 @@ class SettingsPage(QWidget):
         subtitle.setStyleSheet(f"font-size: {F.SIZE_SM}; color: {C.MUTED_FG}; margin-bottom: 8px;")
         layout.addWidget(subtitle)
 
-        # -- Backup section ------------------------------------------------- #
+        # -- Backup & Restore section --------------------------------------- #
 
-        backup_group = QGroupBox("Database Backup")
+        backup_group = QGroupBox("BACKUP & RESTORE")
         backup_layout = QVBoxLayout(backup_group)
+        backup_layout.setSpacing(16)
 
         backup_toolbar = QHBoxLayout()
         self.backup_button = QPushButton("Create Backup")
@@ -111,6 +124,32 @@ class SettingsPage(QWidget):
         self.backup_count_label.setStyleSheet(f"color: {C.MUTED_FG};")
         backup_layout.addWidget(self.backup_count_label)
 
+        # Danger zone
+        danger_zone = QFrame()
+        danger_zone.setStyleSheet(f"""
+            QFrame {{
+                border: 1px solid {C.DESTRUCTIVE_LIGHT};
+                border-radius: {S.RADIUS_SM};
+                background-color: #FEF2F2;
+            }}
+        """)
+        danger_layout = QHBoxLayout(danger_zone)
+        danger_layout.setContentsMargins(16, 16, 16, 16)
+        
+        restore_info = QLabel(
+            "Restore database from selected backup. This will overwrite current data. "
+            "A safety backup is created automatically."
+        )
+        restore_info.setStyleSheet(f"color: {C.DESTRUCTIVE}; font-weight: {F.WEIGHT_MEDIUM};")
+        restore_info.setWordWrap(True)
+        danger_layout.addWidget(restore_info, 1)
+
+        self.restore_button = QPushButton("Restore from Backup")
+        self.restore_button.setObjectName("btnDanger")
+        self.restore_button.clicked.connect(self._on_restore)
+        danger_layout.addWidget(self.restore_button)
+        
+        backup_layout.addWidget(danger_zone)
         layout.addWidget(backup_group, 1)
 
         # -- Receipt printing section ------------------------------------------ #
@@ -129,10 +168,15 @@ class SettingsPage(QWidget):
 
         printer_row = QHBoxLayout()
         printer_row.addWidget(QLabel("Printer name:"))
-        self.printer_name_input = QLineEdit()
+        self.printer_name_input = QComboBox()
+        self.printer_name_input.setEditable(True)
         self.printer_name_input.setPlaceholderText(
             "e.g. Xprinter XP-370B"
         )
+        self.printer_name_input.setInsertPolicy(
+            QComboBox.InsertPolicy.NoInsert
+        )
+        self.printer_name_input.setCurrentText("")
         printer_row.addWidget(self.printer_name_input, 1)
         printing_layout.addLayout(printer_row)
 
@@ -145,6 +189,10 @@ class SettingsPage(QWidget):
         self.save_printer_button.setObjectName("btnPrimary")
         self.save_printer_button.clicked.connect(self._on_save_printer)
         printer_buttons.addWidget(self.save_printer_button)
+        self.test_print_button = QPushButton("Test Print")
+        self.test_print_button.setObjectName("btnPrimary")
+        self.test_print_button.clicked.connect(self._on_test_print)
+        printer_buttons.addWidget(self.test_print_button)
         self.clear_printer_button = QPushButton("Clear (no printing)")
         self.clear_printer_button.setObjectName("btnSecondary")
         self.clear_printer_button.clicked.connect(self._on_clear_printer)
@@ -154,32 +202,9 @@ class SettingsPage(QWidget):
 
         layout.addWidget(printing_group)
 
-        # -- Restore section ------------------------------------------------ #
-
-        restore_group = QGroupBox("Database Restore")
-        restore_layout = QVBoxLayout(restore_group)
-
-        restore_toolbar = QHBoxLayout()
-        self.restore_button = QPushButton("Restore from Backup...")
-        self.restore_button.setObjectName("btnDanger")
-        self.restore_button.clicked.connect(self._on_restore)
-        restore_toolbar.addWidget(self.restore_button)
-        restore_toolbar.addStretch()
-        restore_layout.addLayout(restore_toolbar)
-
-        restore_info = QLabel(
-            "Select a backup from the list above, then click 'Restore from Backup' "
-            "to restore the database. A safety backup of the current state will be "
-            "created automatically before the restore."
-        )
-        restore_info.setWordWrap(True)
-        restore_layout.addWidget(restore_info)
-
-        layout.addWidget(restore_group)
-
         # -- Cloud Sync section ------------------------------------------------ #
 
-        sync_group = QGroupBox("Cloud Synchronization")
+        sync_group = QGroupBox("CLOUD SYNC & DEVICE")
         sync_layout = QVBoxLayout(sync_group)
 
         # Status row
@@ -387,21 +412,55 @@ class SettingsPage(QWidget):
             self.restore_button.setEnabled(True)
 
     def _load_printer_config(self) -> None:
-        """Populate the printer field from the persisted Settings-UI value."""
+        """Populate the printer selector from persisted and installed printers."""
         store = PrinterConfigStore(self._settings.data_dir)
-        self.printer_name_input.setText(store.load())
+        saved = store.load()
         env_name = (self._settings.printer_name or "").strip()
-        if env_name and not store.load():
+        selected = saved or env_name
+
+        installed = self._installed_printer_names()
+        self.printer_name_input.blockSignals(True)
+        self.printer_name_input.clear()
+        self.printer_name_input.addItems(installed)
+        self.printer_name_input.setCurrentText(selected if selected else "")
+        self.printer_name_input.blockSignals(False)
+
+        if env_name and not saved:
             self.printer_hint_label.setText(
                 f"Using environment printer: {env_name}"
+            )
+        elif not installed and env_name:
+            self.printer_hint_label.setText(
+                f"Using environment printer: {env_name} (no installed printers detected)"
+            )
+        elif not installed:
+            self.printer_hint_label.setText(
+                "No installed printers detected by Windows."
             )
         else:
             self.printer_hint_label.setText("")
 
+    def _installed_printer_names(self) -> list[str]:
+        """Return the display names of installed Windows printers, if available."""
+        try:
+            import win32print
+        except ImportError:
+            return []
+        try:
+            flags = (
+                win32print.PRINTER_ENUM_LOCAL
+                | win32print.PRINTER_ENUM_CONNECTIONS
+            )
+            return sorted(
+                {entry[2] for entry in win32print.EnumPrinters(flags)}
+            )
+        except Exception:  # noqa: BLE001
+            return []
+
     def _on_save_printer(self) -> None:
         """Persist the Settings-UI printer name (primary configuration)."""
         store = PrinterConfigStore(self._settings.data_dir)
-        store.save(self.printer_name_input.text().strip())
+        store.save(self.printer_name_input.currentText().strip())
         self._load_printer_config()
         QMessageBox.information(
             self,
@@ -413,12 +472,69 @@ class SettingsPage(QWidget):
         """Clear the configured printer; falls back to the environment name."""
         store = PrinterConfigStore(self._settings.data_dir)
         store.clear()
-        self.printer_name_input.clear()
+        self.printer_name_input.setCurrentText("")
         self._load_printer_config()
         QMessageBox.information(
             self,
             "Printer Cleared",
             "No printer is configured. Receipts will not be printed after sales.",
+        )
+
+    def _on_test_print(self) -> None:
+        """Send a sample receipt to the selected printer (no sale required)."""
+        name = self.printer_name_input.currentText().strip()
+        if not name:
+            QMessageBox.warning(
+                self,
+                "No Printer",
+                "Enter or pick a printer name, then Save Printer, then Test Print.",
+            )
+            return
+
+        receipt = ReceiptData(
+            receipt_no="TEST-PRINT",
+            sale_date=datetime.now(),
+            cashier_name=self.current_user.full_name,
+            customer_name="Walk-in",
+            lines=[
+                ReceiptLine(
+                    name="Test Product",
+                    quantity=1,
+                    unit_price=Decimal("500"),
+                    total=Decimal("500"),
+                )
+            ],
+            subtotal=Decimal("500"),
+            discount_type=None,
+            discount_value=Decimal("0"),
+            discount_amount=Decimal("0"),
+            total=Decimal("500"),
+            payment_method=PAYMENT_POS,
+            payment_label="BANK POS",
+            amount_paid=Decimal("500"),
+            barcode="TEST-PRINT",
+        )
+
+        try:
+            WindowsPrinter(name, renderer=EscPosRenderer()).print_receipt(receipt)
+        except PrinterUnavailableError as exc:
+            QMessageBox.warning(
+                self,
+                "Printer Unavailable",
+                f"Could not reach '{name}':\n{exc}",
+            )
+            return
+        except PrinterWriteFailureError as exc:
+            QMessageBox.warning(
+                self,
+                "Print Failed",
+                f"Writing to '{name}' failed:\n{exc}",
+            )
+            return
+        QMessageBox.information(
+            self,
+            "Test Print Sent",
+            f"A test receipt was sent to '{name}'.",
         )
 
     def _refresh_sync_section(self) -> None:

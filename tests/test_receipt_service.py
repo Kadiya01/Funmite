@@ -130,13 +130,15 @@ def test_render_receipt_text_has_wireframe_sections(session_factory, session):
     lines = render_receipt_text(receipt)
     text = "\n".join(lines)
     assert receipt.shop_name in text
-    assert f"RECEIPT: {receipt.receipt_no}" in text
-    assert "Cashier:" in text
-    assert "Customer: Amina Yusuf" in text
-    assert "TOTAL:" in text
-    assert "Payment: BANK POS" in text
-    assert f"Receipt barcode: {receipt.receipt_no}" in text
-    assert "Thank you for shopping" in text
+    assert f"Receipt No : {receipt.receipt_no}" in text
+    assert "Cashier    :" in text
+    assert "Customer   : Amina Yusuf" in text
+    assert "TOTAL" in text
+    assert "Payment Method  : BANK POS" in text
+    assert receipt.receipt_no in text
+    assert "THANK YOU FOR SHOPPING" in text
+    text_footer = receipt.footer or ""
+    assert "Please keep this receipt" in text_footer
 
 
 def test_print_receipt_via_in_memory_printer(session_factory, session):

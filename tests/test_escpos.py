@@ -105,7 +105,7 @@ def test_encode_text_replaces_naira_on_cp437():
 def test_render_includes_receipt_number_and_shop():
     data = _receipt()
     out = EscPosRenderer().render(data)
-    assert b"RECEIPT: FUN-20260101-001" in out
+    assert b"Receipt No : FUN-20260101-001" in out
     assert b"FUNMITE CLOTHING & BEYOND" in out
 
 

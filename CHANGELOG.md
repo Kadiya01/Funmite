@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [1.3.0] — UI/UX Polish (Pre-UAT)
+## [1.2.0] — UI/UX Polish (Pre-UAT)
 
 - Consolidated `_darken`/`_lighten` utility functions into `app/ui/theme.py` as
   public `darken()`/`lighten()` functions. Removed duplicate local definitions
@@ -32,7 +32,7 @@ All notable changes to this project are documented here.
 - Updated `test_app_shell.py` to match new status bar format.
 - All 657 tests passing (0 failures). Regressed at baseline.
 - Built `dist/FunmitePOS/FunmitePOS.exe` — production EXE with all assets bundled.
-- Version bumped to 1.3.0.
+- Version bumped to 1.2.0.
 
 ## [1.2.0] — Phase 11 Production Hardening
 

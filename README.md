@@ -10,11 +10,7 @@ unresolved client decisions.
 
 ## Status
 
-**Phase 10 (Hybrid Offline-First Cloud Sync) — complete.** Phases 00
-(Foundation), 01 (Database), 02 (Authentication & Authorization), 03
-(Products, Customers & Barcodes), 04 (Inventory), 05 (POS Sales), 06
-(Exchanges), 07 (Purchases, Suppliers & Expenses), 08 (Reports & Dashboard)
-and 09 (Backup & Recovery) are also complete.
+**v1.2.0 (UI/UX Polish) — complete.** The application has been polished and is Ready for Client UAT. Phases 00 through 10 (Hybrid Offline-First Cloud Sync) are complete.
 
 Implemented so far:
 

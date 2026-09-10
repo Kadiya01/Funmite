@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
             status = f"{role_label} \u2022 {name_label}   |   v{__version__}"
         status_bar.showMessage(status)
 
-        self._sync_indicator = QLabel("☁ Offline")
+        self._sync_indicator = QLabel("☁ Offline — Working locally")
         self._sync_indicator.setStyleSheet(
             f"color: {C.MUTED_FG}; padding-right: 8px; font-size: 11px;"
         )
@@ -152,7 +152,7 @@ class MainWindow(QMainWindow):
     def _refresh_sync_indicator(self) -> None:
         """Update the sync status indicator in the status bar."""
         if self.sync_worker is None:
-            self._sync_indicator.setText("☁ Offline")
+            self._sync_indicator.setText("☁ Offline — Working locally")
             self._sync_indicator.setStyleSheet(
                 f"color: {C.MUTED_FG}; padding-right: 8px; font-size: 11px;"
             )
@@ -174,7 +174,7 @@ class MainWindow(QMainWindow):
                         f"color: #F59E0B; padding-right: 8px; font-size: 11px;"
                     )
         except Exception:
-            self._sync_indicator.setText("☁ Offline")
+            self._sync_indicator.setText("☁ Offline — Working locally")
             self._sync_indicator.setStyleSheet(
                 f"color: {C.MUTED_FG}; padding-right: 8px; font-size: 11px;"
             )

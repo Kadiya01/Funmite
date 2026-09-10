@@ -236,7 +236,7 @@ def test_remove_row_clears_cart(qtbot, session_factory, session):
     assert page.total_label.text().endswith("₦0")
 
 
-def test_quantity_spin_updates_total(qtbot, session_factory, session):
+def test_quantity_plus_button_updates_total(qtbot, session_factory, session):
     admin = make_user(session, role=ROLE_ADMIN)
     product = make_product(session, make_category(session), selling_price="1000", quantity=5)
     product.barcode = "1005"
@@ -245,10 +245,14 @@ def test_quantity_spin_updates_total(qtbot, session_factory, session):
     page = _page(session_factory, admin)
     qtbot.addWidget(page)
     _scan(page, "1005")
-    spin = page.cart_table.cellWidget(0, 1)
-    spin.setValue(3)
+    holder = page.cart_table.cellWidget(0, 1)
+    assert holder._qty_label.text() == "1"
+
+    qtbot.mouseClick(holder._plus, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(holder._plus, Qt.MouseButton.LeftButton)
 
     assert page._cart[0]["quantity"] == 3
+    assert holder._qty_label.text() == "3"
     assert "₦3,000" in page.total_label.text()
 
 
@@ -261,12 +265,11 @@ def test_increment_button_increases_quantity(qtbot, session_factory, session):
     page = _page(session_factory, admin)
     qtbot.addWidget(page)
     _scan(page, "1007")
-    spin = page.cart_table.cellWidget(0, 1)
-    assert spin.value() == 1
+    holder = page.cart_table.cellWidget(0, 1)
+    assert holder._qty_label.text() == "1"
 
-    qtbot.mouseClick(spin.lineEdit(), Qt.MouseButton.LeftButton)
-    spin.lineEdit().selectAll()
-    qtbot.keyClick(spin.lineEdit(), Qt.Key.Key_Up)
+    qtbot.mouseClick(holder._plus, Qt.MouseButton.LeftButton)
+
     assert page._cart[0]["quantity"] == 2
     assert "₦2,000" in page.total_label.text()
 
@@ -280,12 +283,13 @@ def test_decrement_button_decreases_quantity(qtbot, session_factory, session):
     page = _page(session_factory, admin)
     qtbot.addWidget(page)
     _scan(page, "1008")
-    spin = page.cart_table.cellWidget(0, 1)
-    spin.setValue(3)
+    holder = page.cart_table.cellWidget(0, 1)
+    qtbot.mouseClick(holder._plus, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(holder._plus, Qt.MouseButton.LeftButton)
     assert page._cart[0]["quantity"] == 3
 
-    qtbot.mouseClick(spin.lineEdit(), Qt.MouseButton.LeftButton)
-    qtbot.keyClick(spin.lineEdit(), Qt.Key.Key_Down)
+    qtbot.mouseClick(holder._minus, Qt.MouseButton.LeftButton)
+
     assert page._cart[0]["quantity"] == 2
     assert "₦1,000" in page.total_label.text()
 
@@ -299,17 +303,16 @@ def test_quantity_cannot_go_below_one(qtbot, session_factory, session):
     page = _page(session_factory, admin)
     qtbot.addWidget(page)
     _scan(page, "1009")
-    spin = page.cart_table.cellWidget(0, 1)
-    assert spin.value() == 1
-    spin.setMinimum(1)
+    holder = page.cart_table.cellWidget(0, 1)
+    assert holder._qty_label.text() == "1"
 
-    qtbot.mouseClick(spin.lineEdit(), Qt.MouseButton.LeftButton)
-    qtbot.keyClick(spin.lineEdit(), Qt.Key.Key_Down)
-    assert spin.value() == 1
+    qtbot.mouseClick(holder._minus, Qt.MouseButton.LeftButton)
+
     assert page._cart[0]["quantity"] == 1
+    assert holder._qty_label.text() == "1"
 
 
-def test_quantity_spin_max_equals_available_stock(qtbot, session_factory, session):
+def test_quantity_plus_button_clamps_to_available_stock(qtbot, session_factory, session):
     admin = make_user(session, role=ROLE_ADMIN)
     product = make_product(session, make_category(session), selling_price="1000", quantity=5)
     product.barcode = "1010"
@@ -318,11 +321,14 @@ def test_quantity_spin_max_equals_available_stock(qtbot, session_factory, sessio
     page = _page(session_factory, admin)
     qtbot.addWidget(page)
     _scan(page, "1010")
-    spin = page.cart_table.cellWidget(0, 1)
-    assert spin.minimum() == 1
-    assert spin.maximum() == 5
-    spin.setValue(99)
-    assert spin.value() == 5
+    holder = page.cart_table.cellWidget(0, 1)
+    assert not holder._minus.isEnabled() or holder._qty_label.text() == "1"
+
+    for _ in range(6):
+        qtbot.mouseClick(holder._plus, Qt.MouseButton.LeftButton)
+
+    assert page._cart[0]["quantity"] == 5
+    assert holder._qty_label.text() == "5"
 
 
 def test_new_sale_resets_cart(qtbot, session_factory, session):

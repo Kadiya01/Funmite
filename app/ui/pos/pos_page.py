@@ -27,9 +27,8 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QMessageBox,
-    QPushButton,
-    QSpinBox,
-    QTableWidget,
+QPushButton,
+QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -543,11 +542,7 @@ class PosPage(QWidget):
             name_item = QTableWidgetItem(line["name"])
             self.cart_table.setItem(row, 0, name_item)
 
-            spin = QSpinBox(self.cart_table)
-            spin.setRange(1, max(line["max_quantity"], 1))
-            spin.setValue(line["quantity"])
-            spin.valueChanged.connect(lambda value, r=row: self._on_quantity_changed(r, value))
-            self.cart_table.setCellWidget(row, 1, spin)
+            self.cart_table.setCellWidget(row, 1, self._make_qty_widget(row, line))
 
             self.cart_table.setItem(row, 2, QTableWidgetItem(format_money(line["price"])))
             self.cart_table.setItem(
@@ -558,14 +553,56 @@ class PosPage(QWidget):
             remove_button.clicked.connect(lambda _checked=False, r=row: self._remove_row(r))
             self.cart_table.setCellWidget(row, 4, remove_button)
 
-    def _on_quantity_changed(self, row: int, value: int) -> None:
-        if row >= len(self._cart):
+    def _make_qty_widget(self, row: int, line: dict) -> QWidget:
+        """Quantity stepper with visible increase/decrease buttons for a cart row."""
+        holder = QWidget(self.cart_table)
+        layout = QHBoxLayout(holder)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(6)
+
+        minus = QPushButton("-", holder)
+        plus = QPushButton("+", holder)
+        if line["max_quantity"] <= 1:
+            minus.setEnabled(False)
+            plus.setEnabled(False)
+        for button in (minus, plus):
+            button.setFixedSize(28, 28)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setToolTip("Decrease quantity" if button is minus else "Increase quantity")
+        minus.clicked.connect(lambda _checked=False, r=row: self._on_quantity_step(r, -1))
+        plus.clicked.connect(lambda _checked=False, r=row: self._on_quantity_step(r, +1))
+
+        qty_label = QLabel(str(line["quantity"]), holder)
+        qty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        qty_label.setMinimumWidth(46)
+        qty_label.setStyleSheet(
+            f"font-weight: {F.WEIGHT_BOLD}; font-size: {F.SIZE_MD}; color: {C.FG};"
+        )
+
+        layout.addWidget(minus)
+        layout.addWidget(qty_label, 1)
+        layout.addWidget(plus)
+
+        holder._qty_label = qty_label
+        holder._minus = minus
+        holder._plus = plus
+        return holder
+
+    def _on_quantity_step(self, row: int, delta: int) -> None:
+        if not (0 <= row < len(self._cart)):
             return
-        self._cart[row]["quantity"] = value
+        line = self._cart[row]
+        value = min(max(line["quantity"] + delta, 1), line["max_quantity"])
+        line["quantity"] = value
         self._refresh_summary()
+        holder = self.cart_table.cellWidget(row, 1)
+        if holder is not None:
+            qty_label = getattr(holder, "_qty_label", None)
+            if qty_label is not None:
+                qty_label.setText(str(value))
         total_item = self.cart_table.item(row, 3)
         if total_item is not None:
-            total_item.setText(format_money(self._cart[row]["price"] * value))
+            total_item.setText(format_money(line["price"] * value))
 
     def _remove_row(self, row: int) -> None:
         if 0 <= row < len(self._cart):

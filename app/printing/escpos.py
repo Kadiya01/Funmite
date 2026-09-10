@@ -53,8 +53,8 @@ CUT_PARTIAL = b"\x1d\x56\x41"
 # ── Logo defaults ─────────────────────────────────────────────────────────
 DEFAULT_LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "logo.png"
 PRINTABLE_DOTS = 576          # 80mm at 8 dots/mm, printable ~72mm
-LOGO_MAX_WIDTH = 400          # dots (kept subordinate to the receipt)
-LOGO_MAX_HEIGHT = 150         # dots (~2 print lines at 203dpi)
+LOGO_MAX_WIDTH = 520          # dots (kept subordinate to the receipt)
+LOGO_MAX_HEIGHT = 300         # dots (~37mm tall at 203dpi; prominent header)
 LOGO_THRESHOLD = 140          # luminance < threshold → printed (ink)
 LOGO_ALPHA_THRESHOLD = 128    # alpha < threshold → treated as paper (no ink)
 

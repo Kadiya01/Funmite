@@ -2,9 +2,11 @@
 
 QMessageBox auto-sizes to its content and centres on the parent window; on
 small displays (or when the parent window is larger than the screen) the box
-can extend past the visible area.  ``fit_message_box`` word-wraps the text,
-caps the width/height to the available screen geometry and repositions the
-box so every part of it (including the buttons) is visible.
+can extend past the visible area, cutting the message off on the right.
+``fit_message_box`` word-wraps the text, hard-caps the box within the
+available screen geometry and repositions it so every part of the dialog
+(including the buttons) is visible — without otherwise changing Qt's default
+content alignment.
 """
 
 from __future__ import annotations
@@ -12,10 +14,11 @@ from __future__ import annotations
 from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
 SCREEN_MARGIN = 16
+MAX_TEXT_WIDTH = 560
 
 
 def fit_message_box(box: QMessageBox) -> QMessageBox:
-    """Word-wrap, clamp and reposition *box* so the whole dialog fits on screen.
+    """Word-wrap text and hard-cap *box* so the whole dialog fits on screen.
 
     Returns the same *box* so callers can chain it before ``exec()``.
     """
@@ -32,18 +35,20 @@ def fit_message_box(box: QMessageBox) -> QMessageBox:
     if avail is None:
         return box
 
-    max_width = max(280, avail.width() - 2 * SCREEN_MARGIN)
+    max_width = avail.width() - 2 * SCREEN_MARGIN
     max_height = avail.height() - 2 * SCREEN_MARGIN
+    text_limit = min(MAX_TEXT_WIDTH, max_width)
 
     for label in box.findChildren(QLabel):
+        if label.pixmap() is not None:
+            continue
         label.setWordWrap(True)
-        limit = max(220, max_width - 56)
-        label.setMaximumWidth(limit)
-        if label.minimumWidth() > limit:
-            label.setMinimumWidth(limit)
+        label.setMaximumWidth(text_limit)
 
     box.adjustSize()
 
+    box.setMaximumWidth(max_width)
+    box.setMaximumHeight(max_height)
     width = min(box.sizeHint().width(), max_width)
     height = min(box.sizeHint().height(), max_height)
     box.resize(width, height)

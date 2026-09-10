@@ -577,11 +577,13 @@ QScrollBar::add-page:horizontal, SScrollBar::sub-page:horizontal {{
 /* --- Message Box --- */
 QMessageBox {{
     background-color: {C.CARD};
+    max-width: 600px;
 }}
 QMessageBox QLabel {{
     font-size: {F.SIZE_BASE};
     color: {C.FG};
     min-width: 200px;
+    qproperty-wordWrap: true;
 }}
 
 /* --- Input Dialog --- */

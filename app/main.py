@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QEventLoop, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QFont, QPixmap
+from PySide6.QtGui import QFont, QGuiApplication, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -109,7 +109,13 @@ class MainWindow(QMainWindow):
         self.sync_worker = sync_worker
         self.setWindowTitle(APP_TITLE)
         self.setMinimumSize(960, 600)
-        self.resize(1100, 700)
+        width, height = 1100, 700
+        screen = QGuiApplication.primaryScreen()
+        if screen is not None:
+            avail = screen.availableGeometry()
+            width = min(width, avail.width() - 24)
+            height = min(height, avail.height() - 48)
+        self.resize(width, height)
 
         if current_user is not None:
             self._build_navigation(current_user)

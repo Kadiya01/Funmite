@@ -14,11 +14,14 @@ from PySide6.QtWidgets import QMessageBox, QWidget
 
 from app.data.models import Product, LOW_STOCK_THRESHOLD
 from app.ui.theme import C, F, S
+from app.ui.widgets.msg_box import fit_message_box
 
 POPUP_TITLE = "Low Stock Alert"
 
+MAX_LISTED_PRODUCTS = 8
 
-def low_stock_summary(products: Sequence[Product]) -> str:
+
+def low_stock_summary(products: Sequence[Product], max_lines: int | None = None) -> str:
     """Human-readable popup body listing the low-stock products."""
     if not products:
         return ""
@@ -26,6 +29,9 @@ def low_stock_summary(products: Sequence[Product]) -> str:
         f"- {product.name} — {product.quantity} left"
         for product in products
     ]
+    if max_lines is not None and len(lines) > max_lines:
+        extra = len(lines) - max_lines
+        lines = lines[:max_lines] + [f"… and {extra} more"]
     return "\n".join(lines)
 
 
@@ -44,8 +50,9 @@ def show_low_stock_alert(parent: QWidget | None, products: Sequence[Product]) ->
         f"{len(products)} product(s) are low on stock "
         f"({LOW_STOCK_THRESHOLD} or fewer left):"
     )
-    message.setInformativeText(low_stock_summary(products))
+    message.setInformativeText(low_stock_summary(products, MAX_LISTED_PRODUCTS))
     view_button = message.addButton("View Stock", QMessageBox.ButtonRole.AcceptRole)
     message.addButton("Dismiss", QMessageBox.ButtonRole.RejectRole)
+    fit_message_box(message)
     message.exec()
     return message.clickedButton() is view_button

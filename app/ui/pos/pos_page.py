@@ -62,6 +62,7 @@ from app.ui.pos.popups import (
 from app.ui.pos.quick_customer import QuickCustomerDialog
 from app.ui.exchanges.exchange_dialog import ExchangeDialog
 from app.ui.widgets import BarcodeScanInput
+from app.ui.widgets.msg_box import fit_message_box
 from app.ui.theme import C, F, S, darken, empty_state_message
 from app.utils.formatting import format_money
 
@@ -800,17 +801,21 @@ class PosPage(QWidget):
             try:
                 self.printer.print_receipt(self.last_receipt)
             except PrinterNotConfiguredError:
-                QMessageBox.warning(
-                    self,
-                    "Printing not configured",
-                    "No receipt printer is configured. Set one in Settings to print receipts.",
-                )
+                box = QMessageBox(self)
+                box.setWindowTitle("Printing not configured")
+                box.setIcon(QMessageBox.Icon.Warning)
+                box.setText("No receipt printer is configured. Set one in Settings to print receipts.")
+                box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
+                fit_message_box(box)
+                box.exec()
             except Exception:
-                QMessageBox.warning(
-                    self,
-                    "Print failed",
-                    "The receipt could not be printed. Use Reprint when the printer is ready.",
-                )
+                box = QMessageBox(self)
+                box.setWindowTitle("Print failed")
+                box.setIcon(QMessageBox.Icon.Warning)
+                box.setText("The receipt could not be printed. Use Reprint when the printer is ready.")
+                box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
+                fit_message_box(box)
+                box.exec()
 
     def _notify_sold_low_stock(self, sold_items: list[dict]) -> None:
         with session_scope(self.session_factory) as session:

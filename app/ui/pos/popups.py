@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QMessageBox
 from app.data.models import Product
 from app.printing.printer import PrinterState
 from app.ui.theme import C, F, S
+from app.ui.widgets.msg_box import fit_message_box
 
 
 def show_sale_complete(parent, receipt_no: str, printed: bool, state: PrinterState) -> str:
@@ -49,6 +50,7 @@ def show_sale_complete(parent, receipt_no: str, printed: bool, state: PrinterSta
     box.addButton("Reprint", QMessageBox.ButtonRole.AcceptRole)
     new_button = box.addButton("New Sale", QMessageBox.ButtonRole.DestructiveRole)
     box.setDefaultButton(new_button)
+    fit_message_box(box)
     box.exec()
     return "new" if box.clickedButton() is new_button else "print"
 
@@ -62,6 +64,7 @@ def show_insufficient_stock(parent, message: str) -> bool:
     reduce_button = box.addButton("Reduce Quantity", QMessageBox.ButtonRole.AcceptRole)
     box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
     box.setDefaultButton(reduce_button)
+    fit_message_box(box)
     box.exec()
     return box.clickedButton() is reduce_button
 
@@ -76,6 +79,7 @@ def show_barcode_not_found(parent, barcode: str, *, can_add: bool) -> str:
         add_button = box.addButton("Add Product", QMessageBox.ButtonRole.AcceptRole)
     close_button = box.addButton("Close", QMessageBox.ButtonRole.RejectRole)
     box.setDefaultButton(close_button)
+    fit_message_box(box)
     box.exec()
     if can_add and box.clickedButton() is add_button:
         return "add"
@@ -86,9 +90,12 @@ def show_low_stock_note(parent, products: list[Product]) -> None:
     """Note after a sale when a sold product is now at the low-stock level."""
     if not products:
         return
-    lines = [f"{product.name} — {product.quantity} left" for product in products]
-    QMessageBox.information(
-        parent,
-        "Low Stock",
-        "These sold products are now low on stock (3 or fewer):\n\n" + "\n".join(lines),
-    )
+    body = "These sold products are now low on stock (3 or fewer):\n\n"
+    body += "\n".join(f"{product.name} — {product.quantity} left" for product in products)
+    box = QMessageBox(parent)
+    box.setWindowTitle("Low Stock")
+    box.setIcon(QMessageBox.Icon.Information)
+    box.setText(body)
+    box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
+    fit_message_box(box)
+    box.exec()

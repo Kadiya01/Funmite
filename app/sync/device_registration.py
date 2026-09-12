@@ -42,17 +42,21 @@ def load_credentials(data_dir: Path) -> dict | None:
         return None
 
 
-def save_credentials(data_dir: Path, cloud_url: str, api_key: str) -> None:
-    """Persist sync credentials (api_key only — device_id comes from DeviceIdentity)."""
-    device = DeviceIdentity(data_dir)
+def save_credentials(data_dir: Path, cloud_url: str, api_key: str, device_id: str) -> None:
+    """Persist sync credentials, keyed by the cloud-assigned device id.
+
+    The cloud ``device_id`` (returned by the registration endpoint) is the
+    identity the server recognizes in the ``X-Device-ID`` header; it may
+    differ from the local :class:`DeviceIdentity`, so it is stored here.
+    """
     creds = {
         "cloud_url": cloud_url,
-        "device_id": device.device_id,
+        "device_id": device_id,
         "api_key": api_key,
     }
     path = _credentials_path(data_dir)
     path.write_text(json.dumps(creds, indent=2), encoding="utf-8")
-    log.info("Sync credentials saved for device %s", device.device_id)
+    log.info("Sync credentials saved for cloud device %s", device_id)
 
 
 def is_registered(data_dir: Path) -> bool:
@@ -81,7 +85,7 @@ def register_device(data_dir: Path, cloud_url: str, device_name: str) -> Registr
         data = resp.json()
 
         api_key = data["api_key"]
-        save_credentials(data_dir, cloud_url, api_key)
+        save_credentials(data_dir, cloud_url, api_key, device_id=data["device_id"])
 
         return RegistrationResult(
             success=True,

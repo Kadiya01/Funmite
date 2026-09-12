@@ -172,7 +172,31 @@ def _apply_append_only(session, model_cls, mut: PulledMutation) -> str:
     entity = model_cls(**local_data)
     session.add(entity)
     session.flush()
+    _after_append_apply(session, mut.entity_type, local_data)
     return "applied"
+
+
+def _after_append_apply(session: Session, entity_type: str, local_data: dict) -> None:
+    """Post-apply side effects for append-only entities.
+
+    Inventory convergence (Phase 2 / M3): when a movement from another PC is
+    pulled, that PC's own running ``product.quantity`` must absorb the movement
+    delta. Applying ``previous/new_quantity`` verbatim would corrupt the count
+    for concurrent offline movements (both PCs would record 15→14 and neither
+    would reach the true 13). Applying just the signed ``change_quantity`` to
+    the receiving PC's own baseline converges correctly and is idempotent
+    because each movement is applied exactly once (``sync_uuid`` skip).
+    """
+    if entity_type != "inventory_log":
+        return
+    product_id = local_data.get("product_id")
+    change = local_data.get("change_quantity")
+    if product_id is None or change is None:
+        return
+    product = session.get(Product, product_id)
+    if product is None:
+        return
+    product.quantity = max(0, product.quantity + int(change))
 
 
 def _apply_reference(session, model_cls, mut: PulledMutation) -> str:
@@ -229,6 +253,17 @@ def _prepare_local_data(session: Session, entity_type: str, payload: dict) -> di
             data[field] = default_val
 
     _coerce_datetime_strings(session, entity_type, data)
+
+    # Keep only columns that exist on the local model so cloud-only fields
+    # (e.g. CloudSaleItem.created_at, which local SaleItem lacks) never leak
+    # into the constructor.
+    from sqlalchemy import inspect as sa_inspect
+    local_columns = {
+        c.key for c in sa_inspect(_LOCAL_MODEL_MAP[entity_type]).column_attrs
+    }
+    for key in list(data):
+        if key not in local_columns:
+            data.pop(key, None)
 
     return data
 

@@ -406,6 +406,7 @@ class TestC_DeviceRegistration:
         creds = load_credentials(tmp_path)
         assert creds["api_key"] == "key-abc-123"
         assert creds["cloud_url"] == "http://cloud"
+        assert creds["device_id"] == "cloud-dev-001"
 
     def test_not_registered_initially(self, tmp_path):
         from app.sync.device_registration import is_registered

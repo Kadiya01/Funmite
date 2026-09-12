@@ -88,6 +88,33 @@ decision does not block the phase.
   The backup service uses microsecond precision; the collision window is ~1s.
   Documented as a known issue. Fix deferred.
 
+## Added during M3 (two-PC online-sync gate)
+
+- **Inventory convergence model** -- RESOLVED: version-LWW on
+  `product.quantity` undercounts in the concurrent-offline case (both PCs
+  record 15→14 while the true on-hand is 13). The receiving PC applies pulled
+  `inventory_log.change_quantity` deltas to its own running `product.quantity`
+  (floored at 0) instead of copying `previous/new_quantity` verbatim. `sync_uuid`
+  skip makes the application idempotent. Implemented in `app/sync/apply.py`.
+- **Client auth device id bug** (found by the M3 gate) -- RESOLVED: registration
+  stored the local `DeviceIdentity.device_id` as the cloud device id, but the
+  server authenticates against the cloud-assigned registry id, so every real
+  HTTP push/pull returned 401. `save_credentials` now persists the cloud
+  `device_id` returned by the register endpoint; `SyncWorker._build_client`
+  uses it for the `X-Device-ID` header. Existing SQLite-shim integration tests
+  never exercised the real HTTP path — the gate did.
+- **Cloud-only columns leaking into local inserts** (found by the M3 gate) --
+  RESOLVED: pulled payloads carry cloud-only fields (e.g. `CloudSaleItem.created_at`,
+  which local `SaleItem` lacks) and were passed to the local model constructor,
+  raising `TypeError`. `_prepare_local_data` now filters to columns that exist
+  on the local model.
+- **M3 gate evidence** -- `tests/test_shop_two_pc_workflow.py` runs both PCs as
+  real offline SQLite stores against a live uvicorn + real PostgreSQL: both PCs
+  sell offline, reconnect, push/pull, and converge (receipts, movements,
+  payments, cloud counts, independent backups); a cloud-down PC still sells and
+  its worker retries successfully on recovery. Skipped when `FUNMITE_TEST_PG_URL`
+  is unset.
+
 ## Added during Phase 06
 
 - **Customer-owed refund settlement** — when the replacement item costs less than

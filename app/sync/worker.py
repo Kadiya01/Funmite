@@ -385,9 +385,13 @@ class SyncWorker:
 
         try:
             creds = json.loads(cred_path.read_text(encoding="utf-8"))
+            # The server authenticates against the cloud-assigned device id
+            # stored during registration, which may differ from the local
+            # DeviceIdentity. Fall back to the legacy field for old creds files.
+            cloud_device_id = creds.get("device_id") or device_id
             return SyncClient(
                 base_url=creds["cloud_url"],
-                device_id=device_id,
+                device_id=cloud_device_id,
                 api_key=creds["api_key"],
             )
         except Exception:

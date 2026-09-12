@@ -1475,9 +1475,6 @@ class TestDeviceRegistrationFlow:
     def test_register_and_persist(self, tmp_path, cloud_client):
         from app.sync.device_registration import register_device, is_registered, load_credentials
         # Get the cloud URL from the test client
-        # We'll use httpx to call the actual test server
-        import httpx
-        from app.domain.services.device_service import DeviceIdentity
 
         # The cloud_client is a TestClient — we can get its base_url
         # Instead, use the register_device function directly with a mock URL
@@ -1491,18 +1488,18 @@ class TestDeviceRegistrationFlow:
         assert resp.status_code == 200
         data = resp.json()
         api_key = data["api_key"]
+        device_id = data["device_id"]
 
         # Save credentials manually
         from app.sync.device_registration import save_credentials
-        save_credentials(tmp_path, "http://fake.cloud", api_key)
+        save_credentials(tmp_path, "http://fake.cloud", api_key, device_id=device_id)
 
         assert is_registered(tmp_path) is True
         creds = load_credentials(tmp_path)
         assert creds is not None
         assert creds["api_key"] == api_key
         assert creds["cloud_url"] == "http://fake.cloud"
-        device = DeviceIdentity(tmp_path)
-        assert creds["device_id"] == device.device_id
+        assert creds["device_id"] == device_id
 
     def test_load_credentials_missing(self, tmp_path):
         from app.sync.device_registration import load_credentials
@@ -1515,7 +1512,6 @@ class TestDeviceRegistrationFlow:
 
     def test_register_device_success(self, tmp_path):
         from app.sync.device_registration import register_device, is_registered
-        from app.domain.services.device_service import DeviceIdentity
 
         mock_request = httpx.Request("POST", "http://fake.cloud/api/sync/devices/register")
         mock_response = httpx.Response(
@@ -1539,8 +1535,7 @@ class TestDeviceRegistrationFlow:
             creds = load_credentials(tmp_path)
             assert creds["api_key"] == "test-api-key-456"
             assert creds["cloud_url"] == "http://fake.cloud"
-            device = DeviceIdentity(tmp_path)
-            assert creds["device_id"] == device.device_id
+            assert creds["device_id"] == "test-device-id-123"
 
     def test_register_device_connection_failure(self, tmp_path):
         from app.sync.device_registration import register_device, is_registered

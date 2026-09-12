@@ -11,6 +11,7 @@ content alignment.
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
 SCREEN_MARGIN = 16
@@ -43,6 +44,7 @@ def fit_message_box(box: QMessageBox) -> QMessageBox:
         if label.pixmap() is not None:
             continue
         label.setWordWrap(True)
+        label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         label.setMaximumWidth(text_limit)
 
     box.adjustSize()

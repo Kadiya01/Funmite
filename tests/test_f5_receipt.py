@@ -35,7 +35,8 @@ from app.domain.services.sale_service import SaleService
 from app.printing.escpos import (
     ALIGN_LEFT,
     CODE_PAGE_PC437,
-    CUT_PARTIAL,
+    CUT_FULL,
+    CUT_FEED_LINES,
     EMPHASIS_ON,
     INIT,
     EscPosRenderer,
@@ -407,7 +408,7 @@ def test_esp_output_is_valid_bytes_stream():
     out = EscPosRenderer().render(_receipt())
     assert isinstance(out, bytes)
     assert out.startswith(INIT + CODE_PAGE_PC437)
-    assert out.endswith(b"\x0a\x0a\x0a" + CUT_PARTIAL)
+    assert out.endswith(b"\x0a" * CUT_FEED_LINES + CUT_FULL)
 
 
 def test_esp_contains_alignment_and_emphasis_commands():

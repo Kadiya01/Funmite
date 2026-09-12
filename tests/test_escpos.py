@@ -13,7 +13,7 @@ from app.printing.escpos import (
     ALIGN_CENTRE,
     ALIGN_LEFT,
     CODE_PAGE_PC437,
-    CUT_PARTIAL,
+    CUT_FULL,
     EMPHASIS_OFF,
     EMPHASIS_ON,
     INIT,
@@ -73,10 +73,10 @@ def test_render_bolds_shop_header():
     assert out.index(EMPHASIS_ON) < out.index(header) < out.index(EMPHASIS_OFF)
 
 
-def test_render_ends_with_partial_cut():
+def test_render_ends_with_full_cut():
     data = _receipt()
     out = EscPosRenderer().render(data)
-    assert out.endswith(CUT_PARTIAL)
+    assert out.endswith(CUT_FULL)
 
 
 def test_render_contains_code128_barcode_command():

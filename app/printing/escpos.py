@@ -48,7 +48,9 @@ ALIGN_LEFT = b"\x1b\x61\x00"
 ALIGN_RIGHT = b"\x1b\x61\x02"
 EMPHASIS_ON = b"\x1b\x45\x01"
 EMPHASIS_OFF = b"\x1b\x45\x00"
+CUT_FULL = b"\x1d\x56\x00"
 CUT_PARTIAL = b"\x1d\x56\x41"
+CUT_FEED_LINES = 5
 
 # ── Logo defaults ─────────────────────────────────────────────────────────
 DEFAULT_LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "logo.png"
@@ -237,8 +239,8 @@ class EscPosRenderer:
         lines = render_receipt_text(receipt, self.width)
         out += self._render_lines(receipt, lines)
 
-        out += b"\x0a\x0a\x0a"
-        out += CUT_PARTIAL
+        out += b"\x0a" * CUT_FEED_LINES
+        out += CUT_FULL
         return bytes(out)
 
     # ── internal helpers ──────────────────────────────────────────────────

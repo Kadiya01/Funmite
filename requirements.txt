@@ -14,6 +14,11 @@ python-barcode>=0.15
 # Windows deployment; imported lazily so other platforms/tests need not install it.
 pywin32>=306; platform_system == "Windows"
 
+# PostgreSQL driver (Phase 2 M2, cloud sync). The cloud engine accepts any
+# SQLAlchemy URL (dev/test default sqlite); this enables postgresql:// URLs.
+# Imported lazily by SQLAlchemy only when a postgresql URL is configured.
+psycopg2-binary>=2.9
+
 # Testing
 pytest>=8.0
 pytest-qt>=4.4

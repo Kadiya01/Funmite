@@ -15,6 +15,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from sqlalchemy import Engine, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import load_settings
@@ -200,7 +201,20 @@ def push_mutations(
             conflicts.append(result)
             rejected += 1
 
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        duplicate = None
+        if exc.params and isinstance(exc.params, dict):
+            duplicate = exc.params.get("receipt_no")
+        if duplicate:
+            detail = f"Duplicate receipt_no ({duplicate}) rejected; batch rolled back"
+        else:
+            detail = "Cloud constraint violation; batch rolled back"
+        log.warning(detail)
+        raise HTTPException(status_code=409, detail=detail)
+
     now = datetime.now()
 
     return PushResponse(

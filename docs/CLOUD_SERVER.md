@@ -1,10 +1,10 @@
-# Funmite Cloud Sync Service (Phase 2 — M1/M2)
+# Funmite Cloud Sync Service (Phase 2 — M1/M2/M3)
 
 The cloud sync server is the **online** half of the offline-first POS. Each PC
 keeps its own local SQLite database and a background worker pushes/pulls
 mutations through this service into a shared cloud database. This document
-covers Phase 2 M1 (the runnable FastAPI application) and M2 (real PostgreSQL
-support).
+covers Phase 2 M1 (the runnable FastAPI application), M2 (real PostgreSQL
+support), and M3 (hosting prep + the two-PC field gate).
 
 ## Status (truthful to the current milestone)
 
@@ -18,10 +18,15 @@ support).
   uniqueness guard now returns `409 Conflict` with a structured message
   instead of a raw `500`. The real-PostgreSQL gate is `tests/test_cloud_postgres.py`
   (skipped unless `FUNMITE_TEST_PG_URL` is set).
-- **Not done yet (later milestones):** provisioning of a managed PostgreSQL
-  database and a public host (M3), and the two-PC field validation (M3).
-  Today the service runs against the configured `FUNMITE_CLOUD_DB_URL`; point it
-  at any `postgresql://…` URL for the production backend — no code change needed.
+- **M3 core done:** the decisive two-PC workflow gate
+  (`tests/test_shop_two_pc_workflow.py`) runs two real offline SQLite stores
+  against a live uvicorn + real PostgreSQL — both sell offline, reconnect,
+  and converge; a cloud-down POS still sells and its worker retries on
+  recovery. Env-gated on `FUNMITE_TEST_PG_URL`; full regression stays green.
+- **M3 hosting prep done:** `/healthz` readiness probe, `DATABASE_URL`
+  fallback, `Procfile`, `render.yaml`, and the deployment runbook in
+  `docs/HOSTING.md`. Provisioning the live host + managed database is
+  performed by the owner in the provider console (M3 hosting gate).
 
 ## The single implementation
 
@@ -60,7 +65,8 @@ The launcher defaults to `127.0.0.1:8000`; override with `FUNMITE_API_HOST` and
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `FUNMITE_CLOUD_DB_URL` | `sqlite:///cloud.db` | Cloud database URL. `postgresql://user:pass@host:5432/db` for the real backend (M2). |
+| `FUNMITE_CLOUD_DB_URL` | `sqlite:///cloud.db` | Cloud database URL. `postgresql://user:pass@host:5432/db` for the real backend (M2). Hosted providers set this (Render blueprint) or the standard `DATABASE_URL`. |
+| `DATABASE_URL` | *(fallback)* | Standard provider variable; used only when `FUNMITE_CLOUD_DB_URL` is unset. |
 | `FUNMITE_API_HOST` | `127.0.0.1` | uvicorn bind host. |
 | `FUNMITE_API_PORT` | `8000` | uvicorn bind port. |
 
@@ -72,6 +78,7 @@ The URL is also used by POS clients through the same settings
 
 | Endpoint | Method | Notes |
 |---|---|---|
+| `/healthz` | GET | Readiness probe (no auth): answers `SELECT 1` against the cloud DB → `200 {"status":"ok","database":"up"}` or `503`. Used by the hosting provider's health check. |
 | `/api/sync/devices/register` | POST | Register a device, returns `device_id` + `api_key`. |
 | `/api/sync/push` | POST | Push local mutations (auth: `X-Device-ID`, `X-API-Key`). |
 | `/api/sync/pull` | POST | Pull other devices' mutations since a timestamp. |
@@ -124,3 +131,19 @@ verifies:
 4. pushing a second sale with the same `receipt_no` is rejected with
    `409 Conflict` (message names the duplicate) and the batch is rolled back —
    the unique guard holds on PostgreSQL.
+
+## Two-PC workflow gate (M3)
+
+`tests/test_shop_two_pc_workflow.py` needs a real PostgreSQL and runs its own
+live uvicorn subprocess against it. Skipped unless `FUNMITE_TEST_PG_URL` is set:
+
+```bat
+set FUNMITE_TEST_PG_URL=postgresql://user:pass@127.0.0.1:5432/funmite_test
+set PYTHONPATH=.
+.venv\Scripts\python.exe -m pytest tests/test_shop_two_pc_workflow.py -q
+```
+
+It launches two offline PC stores that sell while disconnected, reconnect, and
+verify receipts, inventory deltas (true on-hand converges), payments,
+independent backups, and a cloud-down → retry-drain scenario on the second
+test. See `docs/HOSTING.md` for the public deployment runbook.

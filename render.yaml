@@ -1,0 +1,33 @@
+# Render blueprint for the Funmite cloud sync service (Phase 2 M3 hosting).
+#
+# This launches:
+#   - a managed PostgreSQL database (secrets live in Render, never in git), and
+#   - one web service running the FastAPI app against that database.
+#
+# The managed database connection string is injected into the service as
+# FUNMITE_CLOUD_DB_URL by Render's `fromDatabase` reference. The app also
+# falls back to the standard DATABASE_URL if it is set directly.
+#
+# No credentials appear in this file.
+
+services:
+  - type: web
+    name: funmite-cloud-sync
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app.sync.cloud_api:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: FUNMITE_CLOUD_DB_URL
+        fromDatabase:
+          name: funmite-cloud-db
+          property: connectionString
+      - key: PYTHONUNBUFFERED
+        value: "true"
+
+databases:
+  - name: funmite-cloud-db
+    databaseName: funmite_cloud
+    user: funmite_cloud

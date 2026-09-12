@@ -71,7 +71,10 @@ class Settings:
         default_factory=lambda: os.getenv("FUNMITE_CLOUD_SYNC", "").lower() in ("1", "true", "yes")
     )
     cloud_db_url: str = field(
-        default_factory=lambda: os.getenv("FUNMITE_CLOUD_DB_URL", "sqlite:///cloud.db")
+        default_factory=lambda: os.getenv(
+            "FUNMITE_CLOUD_DB_URL",
+            os.getenv("DATABASE_URL", "sqlite:///cloud.db"),
+        )
     )
     sync_push_interval: int = field(
         default_factory=lambda: _env_int("FUNMITE_SYNC_PUSH_INTERVAL", 30)

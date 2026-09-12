@@ -38,6 +38,17 @@ def test_module_level_app_is_a_fastapi_application():
     assert "/api/sync/push" in paths
     assert "/api/sync/pull" in paths
     assert "/api/sync/status" in paths
+    assert "/healthz" in paths
+
+
+def test_healthz_probes_the_cloud_database():
+    try:
+        with TestClient(create_app("sqlite:///:memory:")) as client:
+            healthy = client.get("/healthz")
+            assert healthy.status_code == 200
+            assert healthy.json() == {"status": "ok", "database": "up"}
+    finally:
+        set_cloud_session_factory(None)
 
 
 # ------------------------------------------------------------------

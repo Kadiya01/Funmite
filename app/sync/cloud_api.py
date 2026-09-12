@@ -14,7 +14,7 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -513,6 +513,25 @@ def create_app(
 
     _engine = engine
     _factory = None
+
+    @app.get("/healthz", tags=["ops"])
+    def _healthz() -> dict:
+        """Liveness + readiness probe used by the hosted provider.
+
+        Returns 200 only when the app is started and the cloud database
+        answers ``SELECT 1``; 503 otherwise. Never requires credentials so
+        platform health checks (e.g. Render) can call it unauthenticated.
+        """
+        eng = _engine
+        if eng is None:
+            raise HTTPException(status_code=503, detail="startup not complete")
+        try:
+            with eng.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except Exception as exc:
+            log.warning("Health check failed: %s", exc)
+            raise HTTPException(status_code=503, detail="database unreachable") from exc
+        return {"status": "ok", "database": "up"}
 
     @app.on_event("startup")
     def _startup() -> None:

@@ -13,11 +13,16 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from app.sync.cloud_db import create_cloud_session_factory, init_cloud_schema
+from app.config import load_settings
+from app.sync.cloud_db import (
+    create_cloud_engine,
+    create_cloud_session_factory,
+    init_cloud_schema,
+)
 from app.sync.cloud_models import (
     CloudCategory,
     CloudCustomer,
@@ -454,3 +459,59 @@ def sync_status(
         last_push_at=device.last_seen_at,
         last_pull_at=device.last_seen_at,
     )
+
+
+# ------------------------------------------------------------------
+# FastAPI application (Phase 2 / M1)
+# ------------------------------------------------------------------
+
+
+def create_app(
+    cloud_db_url: str | None = None,
+    *,
+    engine: Engine | None = None,
+) -> FastAPI:
+    """Build the Funmite cloud sync FastAPI application.
+
+    This is the single cloud-server implementation. POS devices push and pull
+    against these routes; the owner reads the cloud database separately (no
+    web UI). On startup the app:
+
+    1. creates the cloud engine from ``cloud_db_url`` unless an ``engine`` is
+       injected (default: the ``FUNMITE_CLOUD_DB_URL`` environment setting);
+    2. initializes the cloud schema (``create_all``, idempotent);
+    3. installs the session factory that the ``get_db`` dependency uses.
+
+    ``FUNMITE_CLOUD_DB_URL`` currently defaults to ``sqlite:///cloud.db`` (the
+    development/test backend). Production PostgreSQL support is provisioned in
+    Phase 2 M2/M3; this app reads whatever URL it is given and needs no changes
+    to switch backends once the driver exists.
+    """
+    app = FastAPI(
+        title="Funmite Cloud Sync",
+        description=(
+            "Push/pull sync service for Funmite POS devices "
+            "(offline-first hybrid, Phase 10C)."
+        ),
+        version="1.0.0",
+    )
+    app.include_router(router)
+
+    _engine = engine
+    _factory = None
+
+    @app.on_event("startup")
+    def _startup() -> None:
+        nonlocal _engine, _factory
+        if _engine is None:
+            url = cloud_db_url or load_settings().cloud_db_url
+            _engine = create_cloud_engine(url)
+        init_cloud_schema(_engine)
+        _factory = create_cloud_session_factory(_engine)
+        set_cloud_session_factory(_factory)
+
+    return app
+
+
+# Module-level instance used by the launcher (uvicorn app.sync.cloud_api:app).
+app = create_app()

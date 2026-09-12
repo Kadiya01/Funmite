@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from sqlalchemy import func, select
@@ -30,6 +31,7 @@ from app.data.models import (
     SaleItem,
 )
 from app.domain.errors import AuthorizationError, NotFoundError, ValidationError
+from app.domain.services.device_service import DeviceIdentity
 from app.domain.services.inventory_service import REFERENCE_SALE
 from app.domain.services.sale_service import RECEIPT_PREFIX, SALE_ITEM_REASON, SaleService
 from app.domain.session import CurrentUser
@@ -620,3 +622,78 @@ def test_complete_sale_works_fully_offline(session_factory, session):
         assert _count(check, SaleItem) == 1
         assert _count(check, Payment) == 1
         assert _count(check, InventoryLog) == 1
+
+
+# --- per-device receipt prefixes (Phase 2 / online sync) -------------------- #
+
+
+def _device(tmp_path: Path, raw_id: str | None = None) -> DeviceIdentity:
+    folder = tmp_path / (raw_id or "device")
+    folder.mkdir(parents=True, exist_ok=True)
+    if raw_id:
+        (folder / "device.id").write_text(raw_id, encoding="utf-8")
+    return DeviceIdentity(folder)
+
+
+def test_receipt_number_uses_device_code_prefix(session_factory, session, tmp_path):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session)
+    session.commit()
+    identity = _device(tmp_path, "3e6f3f0e-9cb3-4b1d-b72d-0f6a2a1c1a01")
+    sale_date = datetime(2026, 9, 10, 12, 0, 0)
+
+    with session_scope(session_factory) as session:
+        sale = SaleService(session, device=identity).complete_sale(
+            admin,
+            customer_id=customer.id,
+            items=_items((product.id, 1)),
+            payment_method=PAYMENT_POS,
+            sale_date=sale_date,
+        )
+        assert sale.receipt_no == f"3E6F3F-{sale_date:%Y%m%d}-001"
+
+
+def test_device_code_is_sanitized_and_truncated_to_six(session_factory, session, tmp_path):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session)
+    session.commit()
+    identity = _device(tmp_path, "ABC!@#123456DEF-xyz")
+    sale_date = datetime(2026, 9, 10, 12, 0, 0)
+
+    with session_scope(session_factory) as session:
+        sale = SaleService(session, device=identity).complete_sale(
+            admin,
+            customer_id=customer.id,
+            items=_items((product.id, 1)),
+            payment_method=PAYMENT_POS,
+            sale_date=sale_date,
+        )
+        assert sale.receipt_no == f"ABC123-{sale_date:%Y%m%d}-001"
+
+
+def test_devices_mint_independent_receipt_sequences(session_factory, session, tmp_path):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session)
+    session.commit()
+    pc_a = _device(tmp_path / "pc-a")
+    pc_b = _device(tmp_path / "pc-b")
+    assert pc_a.device_id != pc_b.device_id
+    sale_date = datetime(2026, 9, 10, 12, 0, 0)
+
+    with session_scope(session_factory) as session:
+        sale_a = SaleService(session, device=pc_a).complete_sale(
+            admin, customer_id=customer.id, items=_items((product.id, 1)),
+            payment_method=PAYMENT_POS, sale_date=sale_date,
+        )
+    with session_scope(session_factory) as session:
+        sale_b = SaleService(session, device=pc_b).complete_sale(
+            admin, customer_id=customer.id, items=_items((product.id, 1)),
+            payment_method=PAYMENT_POS, sale_date=sale_date,
+        )
+    assert sale_a.receipt_no.endswith("-001")
+    assert sale_b.receipt_no.endswith("-001")
+    assert sale_a.receipt_no.split("-")[0] != sale_b.receipt_no.split("-")[0]
+    assert len(sale_a.receipt_no) <= 50

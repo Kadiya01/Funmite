@@ -72,12 +72,12 @@ decision does not block the phase.
 
 ## Added during Phase 10
 
-- **Receipt number device prefix** — the phase prompt suggested adding a
-  device prefix to receipt numbers to avoid collision across PCs. This was
-  deferred because it's ambiguous in the source-of-truth (the approved format
-  is `FUN-YYYYMMDD-NNN`). The database `UNIQUE` constraint on `receipt_no`
-  remains the final guard. Confirm whether a device prefix is needed for
-  multi-PC production.
+- **Receipt number device prefix** -- RESOLVED: Implemented in Phase 2 (online
+  sync). Receipt numbers now use `{DEVICE}-YYYYMMDD-NNN`, where `DEVICE` is the
+  first 6 hex characters of the per-installation `data/device.id` UUID
+  (uppercased). Each PC mints its own daily sequence, so no collisions across
+  PCs. The cloud `sales.receipt_no` column carries a UNIQUE constraint as the
+  final guard. Legacy `FUN-…` receipts remain readable for lookup/reprint.
 - **Backup encryption** — the security rule says "Protect local backups" but no
   encryption mechanism is specified. Phase 09 stores plain SQLite files. Confirm
   whether backups should be encrypted or password-protected before production.

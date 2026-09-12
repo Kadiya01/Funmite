@@ -34,6 +34,7 @@ QTableWidget,
     QWidget,
 )
 
+from app.config import load_settings
 from app.data.db import session_scope
 from app.data.models import (
     DISCOUNT_FIXED,
@@ -48,6 +49,7 @@ from app.data.repositories.product_repository import ProductRepository
 from app.domain.errors import NotFoundError, ValidationError
 from app.domain.permissions import CAP_CREATE_PRODUCT, CAP_DISCOUNT, CAP_EXCHANGE, CAP_VIEW_REPORTS
 from app.domain.services.customer_service import CustomerService
+from app.domain.services.device_service import DeviceIdentity
 from app.domain.services.product_service import ProductService
 from app.domain.services.receipt_service import ReceiptService
 from app.domain.services.sale_service import SaleService
@@ -751,7 +753,10 @@ class PosPage(QWidget):
 
         try:
             with session_scope(self.session_factory) as session:
-                sale = SaleService(session).complete_sale(
+                sale = SaleService(
+                    session,
+                    device=DeviceIdentity(load_settings().data_dir),
+                ).complete_sale(
                     self.current_user,
                     customer_id=customer_id,
                     items=items,

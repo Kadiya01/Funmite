@@ -23,9 +23,12 @@ Confirmed business rules enforced here (source-of-truth artifacts):
 - Discount types are PERCENT or FIXED; a discount can never make the sale
   total negative (the confirmed "discount cannot make a sale total negative"
   rule). No ceiling/limit is invented.
-- Receipt numbers follow the wireframe candidate ``FUN-YYYYMMDD-NNN`` (daily
-  sequence); the exact prefix/format is still an open client decision and the
-  database UNIQUE constraint is the final guard.
+- Receipt numbers follow ``{DEVICE}-YYYYMMDD-NNN`` (daily sequence per device),
+  where ``DEVICE`` is a short code derived from the installation's persistent
+  device id (``data/device.id``). This makes receipt numbers unique across
+  multiple PCs (Phase 10C topology). When no device identity is provided the
+  service falls back to the legacy ``FUN`` prefix so existing receipts and
+  tests keep working; the database UNIQUE constraint remains the final guard.
 """
 
 from __future__ import annotations
@@ -55,12 +58,14 @@ from app.domain.permissions import (
     require_permission,
 )
 from app.domain.rules.validation import parse_decimal, parse_quantity
+from app.domain.services.device_service import DeviceIdentity
 from app.domain.services.inventory_service import REFERENCE_SALE, InventoryService
 from app.domain.services.sync_service import SyncService
 from app.domain.session import user_record_id
 
 RECEIPT_PREFIX = "FUN"
 RECEIPT_SEQUENCE_DIGITS = 3
+RECEIPT_DEVICE_CODE_LENGTH = 6
 SALE_ITEM_REASON = "Sale"
 
 CENT = Decimal("0.01")
@@ -74,12 +79,13 @@ def money2(value) -> Decimal:
 class SaleService:
     """Use-case service for completing offline POS sales."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, device: DeviceIdentity | None = None) -> None:
         self.session = session
         self.sales = SaleRepository(session)
         self.products = ProductRepository(session)
         self.customers = CustomerRepository(session)
         self.inventory = InventoryService(session)
+        self._device = device
 
     def _sync(self) -> SyncService:
         return SyncService(self.session)
@@ -91,10 +97,23 @@ class SaleService:
 
     # --- receipt numbers -------------------------------------------------- #
 
+    def _device_code(self) -> str:
+        """Short uppercase device code used as the receipt prefix.
+
+        Excludes a provided ``DeviceIdentity`` so each PC mints its own
+        collision-free daily sequence. Falls back to the legacy ``FUN``
+        prefix when no device identity is available.
+        """
+        if self._device is None:
+            return RECEIPT_PREFIX
+        raw = self._device.device_id.replace("-", "").upper()
+        code = "".join(ch for ch in raw if ch.isalnum())[:RECEIPT_DEVICE_CODE_LENGTH]
+        return code or RECEIPT_PREFIX
+
     def next_receipt_no(self, *, at: datetime | None = None) -> str:
-        """Candidate receipt number ``FUN-YYYYMMDD-NNN`` (daily sequence)."""
+        """Receipt number ``{DEVICE}-YYYYMMDD-NNN`` (daily sequence per device)."""
         day = at or datetime.now()
-        prefix = f"{RECEIPT_PREFIX}-{day.strftime('%Y%m%d')}-"
+        prefix = f"{self._device_code()}-{day.strftime('%Y%m%d')}-"
         sequence = self.sales.max_receipt_sequence(prefix) + 1
         return f"{prefix}{sequence:0{RECEIPT_SEQUENCE_DIGITS}d}"
 

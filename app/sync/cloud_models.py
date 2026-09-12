@@ -115,7 +115,7 @@ class CloudSale(CloudBase):
     __tablename__ = "sales"
 
     sync_uuid: Mapped[str] = mapped_column(String(36), primary_key=True)
-    receipt_no: Mapped[str] = mapped_column(String(50))
+    receipt_no: Mapped[str] = mapped_column(String(50), unique=True)
     customer_sync_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
     cashier_name: Mapped[str] = mapped_column(String(150))
     sale_date: Mapped[datetime] = mapped_column(DateTime)

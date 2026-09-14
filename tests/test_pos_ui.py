@@ -1,8 +1,8 @@
 """POS screen tests (Phase 05).
 
 Qt-level coverage of the cashier screen: scanning, search, cart behaviour,
-customer filtering and quick registration, the Admin-only discount and reprint
-controls, POS/Transfer-only payment buttons and the complete-sale flow
+customer filtering and quick registration, the Admin-only discount and the
+shared reprint control, POS/Transfer payment buttons and the complete-sale flow
 including receipt printing and the insufficient-stock recovery path.
 """
 
@@ -11,6 +11,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QMessageBox
 from sqlalchemy import select
 
 from app.data.db import session_scope
@@ -20,6 +21,7 @@ from app.data.models import (
     PAYMENT_TRANSFER,
     ROLE_ADMIN,
     ROLE_CASHIER,
+    SALE_CANCELLED,
     Sale,
 )
 from app.domain.services.sale_service import SaleService
@@ -85,13 +87,13 @@ def test_admin_sees_discount_and_reprint(qtbot, session_factory, session):
     assert hasattr(page, "reprint_button")
 
 
-def test_cashier_hides_discount_and_reprint(qtbot, session_factory, session):
+def test_cashier_hides_discount_but_sees_reprint(qtbot, session_factory, session):
     cashier = make_user(session, role=ROLE_CASHIER)
     session.commit()
     page = _page(session_factory, cashier)
     qtbot.addWidget(page)
     assert page.discount_group.isHidden()
-    assert not hasattr(page, "reprint_button")
+    assert hasattr(page, "reprint_button")
 
 
 def test_only_pos_and_transfer_payment_buttons(qtbot, session_factory, session):
@@ -810,13 +812,67 @@ def test_admin_reprints_receipt(qtbot, session_factory, session):
     assert printer.receipts[0].receipt_no == sale.receipt_no
 
 
-def test_cashier_reprint_blocked(qtbot, session_factory, session):
+def test_cashier_can_reprint_receipt(qtbot, session_factory, session):
+    cashier = make_user(session, role=ROLE_CASHIER)
+    customer = make_customer(session)
+    product = make_product(session, make_category(session), quantity=5)
+    session.commit()
+    with session_scope(session_factory) as session:
+        sale = SaleService(session).complete_sale(
+            cashier,
+            customer_id=customer.id,
+            items=[{"product_id": product.id, "quantity": 1}],
+            payment_method=PAYMENT_POS,
+        )
+
+    printer = InMemoryPrinter()
+    page = _page(session_factory, cashier, printer=printer)
+    qtbot.addWidget(page)
+    page.reprint_receipt(sale.receipt_no)
+
+    assert len(printer.receipts) == 1
+    assert printer.receipts[0].receipt_no == sale.receipt_no
+    assert page.error_label.isHidden()
+
+
+# --- cancel sale (Admin) --------------------------------------------------- #
+
+
+def test_admin_sees_cancel_sale_button(qtbot, session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    session.commit()
+    page = _page(session_factory, admin)
+    qtbot.addWidget(page)
+    assert hasattr(page, "cancel_sale_button")
+
+
+def test_cashier_hides_cancel_sale_button(qtbot, session_factory, session):
     cashier = make_user(session, role=ROLE_CASHIER)
     session.commit()
-
     page = _page(session_factory, cashier)
     qtbot.addWidget(page)
-    page.reprint_receipt("FUN-20260101-001")
+    assert not hasattr(page, "cancel_sale_button")
 
-    assert not page.error_label.isHidden()
-    assert "Could not reprint" in page.error_label.text()
+
+def test_cancel_sale_voids_and_restores_stock(qtbot, monkeypatch, session_factory, session):
+    monkeypatch.setattr(QMessageBox, "information", lambda *_a, **_k: None)
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session)
+    product = make_product(session, make_category(session), quantity=5, selling_price="2000")
+    session.commit()
+    with session_scope(session_factory) as session:
+        sale = SaleService(session).complete_sale(
+            admin,
+            customer_id=customer.id,
+            items=[{"product_id": product.id, "quantity": 2}],
+            payment_method=PAYMENT_POS,
+        )
+
+    page = _page(session_factory, admin)
+    qtbot.addWidget(page)
+    page.cancel_sale(sale.receipt_no, "Customer requested a refund")
+
+    with session_factory() as check:
+        header = check.get(Sale, sale.id)
+        assert header.status == SALE_CANCELLED
+        assert check.get(type(product), product.id).quantity == 5

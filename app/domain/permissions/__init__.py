@@ -19,6 +19,7 @@ from app.domain.permissions.catalog import (  # noqa: F401
     CAP_MANAGE_USERS,
     CAP_PROCESS_PAYMENT,
     CAP_RESTORE,
+    CAP_REPRINT_RECEIPT,
     CAP_SCAN_BARCODE,
     CAP_STOCK_ADJUSTMENT,
     CAP_STOCK_IN,

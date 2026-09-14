@@ -23,8 +23,10 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.data.models import (
+    SALE_CANCELLED,
     Category,
     Customer,
+    CustomerCredit,
     Exchange,
     ExchangeItem,
     Expense,
@@ -55,13 +57,14 @@ _LOCAL_MODEL_MAP: dict[str, type] = {
     "expense": Expense,
     "exchange": Exchange,
     "exchange_item": ExchangeItem,
+    "customer_credit": CustomerCredit,
 }
 
 REFERENCE_TYPES = frozenset({"category", "product", "customer", "supplier"})
 APPEND_ONLY_TYPES = frozenset({
     "sale", "sale_item", "payment", "inventory_log",
     "purchase", "purchase_item", "expense",
-    "exchange", "exchange_item",
+    "exchange", "exchange_item", "customer_credit",
 })
 
 _CLOUD_ONLY_FIELDS = frozenset({
@@ -78,6 +81,7 @@ _USER_FK_DEFAULTS: dict[str, int] = {
     "purchase": {"created_by": 1},
     "expense": {"created_by": 1},
     "exchange": {"approved_by": 1},
+    "customer_credit": {"created_by": 1},
 }
 
 _FK_MAPPINGS: dict[str, list[tuple[str, str, type]]] = {
@@ -113,6 +117,11 @@ _FK_MAPPINGS: dict[str, list[tuple[str, str, type]]] = {
         ("original_product_sync_uuid", "original_product_id", Product),
         ("replacement_product_sync_uuid", "replacement_product_id", Product),
     ],
+    "customer_credit": [
+        ("customer_sync_uuid", "customer_id", Customer),
+        ("exchange_sync_uuid", "exchange_id", Exchange),
+        ("sale_sync_uuid", "sale_id", Sale),
+    ],
 }
 
 
@@ -142,6 +151,9 @@ def _apply_one(session: Session, mut: PulledMutation) -> str:
     if mut.operation == "DELETE":
         return _apply_delete(session, model_cls, mut)
 
+    if mut.entity_type == "sale":
+        return _apply_sale(session, mut)
+
     if mut.entity_type in APPEND_ONLY_TYPES:
         return _apply_append_only(session, model_cls, mut)
 
@@ -149,6 +161,38 @@ def _apply_one(session: Session, mut: PulledMutation) -> str:
         return _apply_reference(session, model_cls, mut)
 
     return "skipped"
+
+
+def _apply_sale(session: Session, mut: PulledMutation) -> str:
+    """Sales are append-only EXCEPT that a CANCELLED sale updates the local row.
+
+    Admin-cancelled sales arrive from the cloud as an UPDATE mutation carrying
+    ``status = "CANCELLED"``. If a sale with this sync_uuid already exists
+    locally it is updated in place (idempotent — repeat pulls re-apply the same
+    values); otherwise it is inserted like any other append-only entity.
+    """
+    existing = session.query(Sale).filter_by(sync_uuid=mut.sync_uuid).first()
+    local_data = _prepare_local_data(session, mut.entity_type, mut.payload)
+    if local_data is None:
+        return "skipped"
+
+    if existing is None:
+        local_data["sync_uuid"] = mut.sync_uuid
+        entity = Sale(**local_data)
+        session.add(entity)
+        session.flush()
+        _after_append_apply(session, mut.entity_type, local_data)
+        return "applied"
+
+    if local_data.get("status") != SALE_CANCELLED or existing.status == SALE_CANCELLED:
+        return "skipped"
+
+    for key in ("status", "cancelled_at", "cancel_reason"):
+        if key in local_data:
+            setattr(existing, key, local_data[key])
+    existing.cancelled_by_user_id = local_data.get("cancelled_by_user_id", 1)
+    session.flush()
+    return "applied"
 
 
 def _apply_delete(session, model_cls, mut: PulledMutation) -> str:

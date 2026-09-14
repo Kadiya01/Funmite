@@ -27,12 +27,16 @@ from PySide6.QtWidgets import (
 )
 
 from app.data.db import session_scope
-from app.data.models import PAYMENT_POS, PAYMENT_TRANSFER
+from app.data.models import PAYMENT_POS, PAYMENT_TRANSFER, ROLE_ADMIN
 from app.domain.errors import AuthorizationError, NotFoundError, ValidationError
 from app.domain.services.exchange_service import ExchangeService
 from app.domain.services.product_service import ProductService
 from app.domain.session import CurrentUser
-from app.ui.exchanges.popups import show_exchange_complete, show_exchange_confirmation
+from app.ui.exchanges.popups import (
+    show_exchange_complete,
+    show_exchange_confirmation,
+    show_exchange_override,
+)
 from app.ui.theme import C, F, S
 from app.utils.formatting import format_money
 
@@ -50,12 +54,14 @@ class ExchangePage(QWidget):
         *,
         confirm_popup: Callable[..., bool] = show_exchange_confirmation,
         complete_popup: Callable[..., None] = show_exchange_complete,
+        override_popup: Callable[..., str | None] = show_exchange_override,
     ) -> None:
         super().__init__(parent)
         self.session_factory = session_factory
         self.current_user = current_user
         self.confirm_popup = confirm_popup
         self.complete_popup = complete_popup
+        self.override_popup = override_popup
 
         self._sale = None
         self._return_options: dict[int, dict] = {}
@@ -344,7 +350,7 @@ class ExchangePage(QWidget):
             self._set_payment_enabled(False)
         else:
             self.difference_label.setText(
-                "Exchange requires a refund to the customer — settlement not confirmed"
+                f"Customer store credit: {format_money(-diff)}"
             )
             self._set_payment_enabled(False)
 
@@ -370,14 +376,11 @@ class ExchangePage(QWidget):
         returned = self._return_price * self.return_qty_spin.value()
         replacement = self._replacement_price * self.replacement_qty_spin.value()
         diff = replacement - returned
-        if diff < 0:
-            self._show_error(
-                "This exchange would give money back to the customer. "
-                "The settlement is not confirmed (see OPEN_DECISIONS.md)."
-            )
-            return
 
-        payment_method = PAYMENT_TRANSFER if self.transfer_button.isChecked() else PAYMENT_POS
+        credit = -diff if diff < 0 else Decimal("0")
+        payment_method = None if diff < 0 else (
+            PAYMENT_TRANSFER if self.transfer_button.isChecked() else PAYMENT_POS
+        )
         receipt_no = self._sale["receipt_no"]
 
         items = [
@@ -389,25 +392,61 @@ class ExchangePage(QWidget):
             }
         ]
 
+        if diff > 0:
+            amount_readout = f"{format_money(diff)} (customer pays)"
+        elif diff < 0:
+            amount_readout = f"{format_money(credit)} issued as customer store credit"
+        else:
+            amount_readout = "No difference"
+
         summary = (
             f"Return: {self._return_options[self._return_product_id]['product_name']} x "
             f"{self.return_qty_spin.value()}\n"
             f"Replace with: {self.replacement_readout.text()} x "
             f"{self.replacement_qty_spin.value()}\n"
-            f"Difference: {format_money(diff) if diff > 0 else 'No difference'}"
+            f"Difference: {amount_readout}"
         )
         if not self.confirm_popup(self, receipt_no, summary):
             return
 
+        self._complete_exchange_call(
+            receipt_no=receipt_no, items=items, payment_method=payment_method
+        )
+
+    def _complete_exchange_call(
+        self,
+        *,
+        receipt_no: str,
+        items: list[dict],
+        payment_method: str | None,
+        override_reason: str | None = None,
+    ) -> None:
+        """Run the single completion attempt; prompt an override on a late sale."""
         try:
             with session_scope(self.session_factory) as session:
                 ExchangeService(session).complete_exchange(
                     self.current_user,
                     receipt_no=receipt_no,
                     items=items,
-                    payment_method=payment_method if diff > 0 else None,
+                    payment_method=payment_method,
+                    override_reason=override_reason,
                 )
-        except (NotFoundError, ValidationError, AuthorizationError) as exc:
+        except ValidationError as exc:
+            if "window has expired" in str(exc) and self.current_user.role == ROLE_ADMIN:
+                reason = self.override_popup(self, receipt_no)
+                if not (reason or "").strip():
+                    self._show_error(str(exc))
+                    return
+                self._complete_exchange_call(
+                    receipt_no=receipt_no,
+                    items=items,
+                    payment_method=payment_method,
+                    override_reason=reason.strip(),
+                )
+                return
+            self._show_error(str(exc))
+            return
+        except (NotFoundError, AuthorizationError) as exc:
             self._show_error(str(exc))
             return
         except Exception:

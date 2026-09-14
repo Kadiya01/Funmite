@@ -10,7 +10,12 @@ unresolved client decisions.
 
 ## Status
 
-**v1.2.0 (UI/UX Polish) — complete.** The application has been polished and is Ready for Client UAT. Phases 00 through 10 (Hybrid Offline-First Cloud Sync) are complete.
+**v1.3.0 (Shop-Use Decisions) — complete.** Confirmed shop-use rules shipped:
+store credit for exchange refunds that is spendable at the till, admin 2-day
+exchange override with audit, admin sale cancellation (reverse + void), cashier
+end-of-day scoped to own sales, cashier reprint, `NGN` on paper receipts, and
+backup auto-purge. Phases 00 through 10 (Hybrid Offline-First Cloud Sync) remain
+complete, and the app is Ready for Client UAT.
 
 Implemented so far:
 

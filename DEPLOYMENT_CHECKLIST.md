@@ -1,12 +1,12 @@
 # Funmite POS — Production Deployment Checklist
 
-Version: 1.1.0 (Phase 10 complete)
+Version: 1.3.0 (Phase 10 complete + v1.3.0 shop-use decisions)
 Date: August 2026
 
 ## 1. Pre-Deployment Preparation
 
 ### 1.1 Build Verification
-- [ ] Run full regression suite: `.venv\Scripts\python.exe -m pytest` — 657 tests passing
+- [ ] Run full regression suite: `.venv\Scripts\python.exe -m pytest` — 826 tests passing
 - [ ] Build executable: `.venv\Scripts\python.exe -m PyInstaller funmite_pos.spec --noconfirm`
 - [ ] Verify `dist/FunmitePOS/FunmitePOS.exe` exists
 - [ ] Launch exe and confirm login dialog appears

@@ -2,6 +2,49 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.0] — Shop-Use Decisions (confirmed batch)
+
+Confirmed shop-use rules shipped as v1.3.0:
+
+- **Store credit for exchange refunds**: a customer-owed exchange difference is
+  now refunded as store credit on a new `customer_credits` ledger (source
+  `EXCHANGE` adds; amount always positive; `sale_id` linked for audit). Exchanges
+  where the customer is owed money are no longer blocked.
+- **Store credit spendable at the till**: `PAYMENT_CREDIT` lets a sale be paid
+  from the customer's store-credit balance. `balance_for()` derives the balance
+  as `SUM(EXCHANGE) - SUM(SALE_PAYMENT)`; the balance can never go negative
+  (`Insufficient store credit` error).
+- **Admin 2-day exchange override**: the Admin may override the 2-day exchange
+  window behind a confirmation prompt; every override is audit-logged
+  (`EXCHANGE_WINDOW_OVERRIDE`).
+- **Sale cancellation**: Admin-only `cancel_sale(receipt_no, reason)` reverses +
+  voids a completed sale (`CAP_CANCEL_SALE`). The sale is marked `CANCELLED`
+  (never deleted), payment rows stay for the audit trail, stock is restored via
+  `change_stock` with `REFERENCE_SALE_CANCELLED`, and store credit paid on the
+  sale is refunded to the customer ledger. Cancelling a sale referenced by a
+  completed exchange is blocked. Cancelled receipts cannot be reprinted.
+- **Reporting excludes cancelled sales**: dashboard, sales, profit, payment,
+  product-sales, cashier-sales and end-of-day reports all ignore `CANCELLED`
+  sales.
+- **Cashier end-of-day**: the cashier's EOD report shows only their own
+  sales/COGS/payments for the day (expenses remain shop-wide), gated by
+  `CAP_VIEW_OWN_SALES`. The cashier "My Sales" screen now shows their own EOD
+  summary line.
+- **Cashier reprint**: reprint is shared via `CAP_REPRINT_RECEIPT` (Admin and
+  Cashier); the POS reprint button now uses the capability instead of
+  `CAP_VIEW_REPORTS`.
+- **`NGN` on paper receipts**: ESC/POS has no naira glyph in PC437, so the
+  printer output uses `NGN`; on-screen text keeps `₦`.
+- **Backup auto-purge**: after every backup the newest `FUNMITE_BACKUP_KEEP`
+  (default 30) backups are retained and backups older than
+  `FUNMITE_BACKUP_MAX_AGE_DAYS` (default 90 days) are removed; both rules must
+  apply and `0` disables a rule.
+- **Version/packaging**: app version unified at 1.3.0; standalone EXE rebuilt.
+- **Migration 005** adds `customer_credits` and rebuilds `sales`, `payments` and
+  `exchanges` for the credit ledger CHECK constraints (idempotent).
+- Test suite expanded for the above (store credit spend, cancellation, cashier
+  EOD scoping, reprint capability, backup purge) — all passing.
+
 ## [1.2.0] — UI/UX Polish (Pre-UAT)
 
 - Consolidated `_darken`/`_lighten` utility functions into `app/ui/theme.py` as

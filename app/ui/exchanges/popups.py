@@ -5,7 +5,7 @@ Each popup is a plain function so the page can inject a fake in tests.
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from app.ui.theme import C, F, S
 from app.ui.widgets.msg_box import fit_message_box
@@ -39,3 +39,21 @@ def show_exchange_complete(parent, receipt_no: str) -> None:
     box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
     fit_message_box(box)
     box.exec()
+
+
+def show_exchange_override(parent, receipt_no: str) -> str | None:
+    """Ask the Admin for an override reason when the 2-day window has expired.
+
+    Returns the reason when the Admin confirms the override, ``None``/empty
+    when cancelled. The reason is stored on the exchange header and audit log.
+    """
+    text, ok = QInputDialog.getMultiLineText(
+        parent,
+        "Exchange Window Expired",
+        f"Receipt {receipt_no} is outside the 2-day exchange window.\n\n"
+        "Admin override requires a reason:",
+        "",
+    )
+    if not ok:
+        return None
+    return text.strip() or None

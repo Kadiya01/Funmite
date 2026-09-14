@@ -14,11 +14,11 @@ Commands used:
 - ``GS v 0``       raster (bit) image — used for the Funmite logo
 - ``GS k 73``      print a Code128 barcode followed by data and NUL
 - ``GS V A``       partial cut
-
 The naira sign (U+20A6) is not part of PC437, so the ESC/POS stream always
-renders amounts with a plain ``N``; the human-readable text layout uses the
-same ``N`` so the preview matches the printed receipt exactly.
 
+renders amounts with a plain ``NGN``; the human-readable text layout uses the
+
+same ``NGN`` so the preview matches the printed receipt exactly.
 F5 branding (approved): the receipt header, contact block, transaction block,
 item columns, emphasised totals, payment section, Code128 barcode and footer
 are produced by ``render_receipt_text`` in ``app/printing/receipt.py``; this
@@ -65,7 +65,7 @@ _LOGO_CACHE: dict[tuple, bytes] = {}
 
 def _encode_text(text: str) -> bytes:
     """Encode one receipt line for PC437, replacing ₦ with ``N``."""
-    return text.replace("\u20a6", "N").encode("cp437", errors="replace")
+    return text.replace("\u20a6", "NGN").encode("cp437", errors="replace")
 
 
 # ── Logo → monochrome raster (GS v 0) ────────────────────────────────────

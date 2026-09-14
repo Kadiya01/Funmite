@@ -25,6 +25,7 @@ from app.data.db import session_scope
 from app.data.models import (
     Category,
     Customer,
+    CustomerCredit,
     Exchange,
     ExchangeItem,
     Expense,
@@ -62,6 +63,7 @@ _LOCAL_MODEL_MAP: dict[str, type] = {
     "expense": Expense,
     "exchange": Exchange,
     "exchange_item": ExchangeItem,
+    "customer_credit": CustomerCredit,
 }
 
 # FK fields that need sync_uuid resolution during serialization.
@@ -88,16 +90,25 @@ _FK_SYNC_UUID_FIELDS: dict[str, list[tuple[str, str, type]]] = {
         ("original_product_id", "original_product_sync_uuid", Product),
         ("replacement_product_id", "replacement_product_sync_uuid", Product),
     ],
+    "customer_credit": [
+        ("customer_id", "customer_sync_uuid", Customer),
+        ("exchange_id", "exchange_sync_uuid", Exchange),
+        ("sale_id", "sale_sync_uuid", Sale),
+    ],
 }
 
 # Cloud-payload display-name fields (mapped from local user FK).
 _USER_DISPLAY_FIELDS: dict[str, list[tuple[str, str, type]]] = {
-    "sale": [("cashier_id", "cashier_name", User)],
+    "sale": [
+        ("cashier_id", "cashier_name", User),
+        ("cancelled_by_user_id", "cancelled_by_name", User),
+    ],
     "payment": [("recorded_by", "recorded_by_name", User)],
     "inventory_log": [("user_id", "user_name", User)],
     "purchase": [("created_by", "created_by_name", User)],
     "expense": [("created_by", "created_by_name", User)],
     "exchange": [("approved_by", "approved_by_name", User)],
+    "customer_credit": [("created_by", "created_by_name", User)],
 }
 
 

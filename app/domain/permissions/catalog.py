@@ -41,6 +41,7 @@ CAP_MANAGE_USERS = "manage_users"
 CAP_MANAGE_CUSTOMERS = "manage_customers"
 CAP_BACKUP = "backup"
 CAP_RESTORE = "restore"
+CAP_REPRINT_RECEIPT = "reprint_receipt"
 CAP_MANAGE_EXPENSES = "manage_expenses"
 CAP_MANAGE_PURCHASES_SUPPLIERS = "manage_purchases_suppliers"
 
@@ -52,6 +53,7 @@ _SHARED = {
     CAP_PROCESS_PAYMENT,
     CAP_SCAN_BARCODE,
     CAP_VIEW_OWN_SALES,
+    CAP_REPRINT_RECEIPT,
 }
 
 _ADMIN_ONLY = {

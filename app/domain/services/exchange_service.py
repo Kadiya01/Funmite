@@ -25,9 +25,12 @@ Confirmed rules enforced here (source-of-truth artifacts):
   reference, so no negative stock and a full movement audit trail.
 - Only Bank POS and Bank Transfer payments exist (the wireframe shows the
   customer paying the difference with POS/Transfer). A zero difference needs no
-  payment. When the customer would be owed money the settlement is NOT
-  confirmed (no-cash rule) — the exchange is refused and the branch is recorded
-  in ``OPEN_DECISIONS.md`` rather than invented here.
+  payment. When the customer would be owed money the shop cannot hand cash back
+  (no-cash rule); instead the owed amount is recorded as store credit on the
+  customer's ledger (``customer_credits``, source ``EXCHANGE``), spendable
+  toward a future sale.
+- The 2-day window can be bypassed by an Admin with ``override_reason``; the
+  override is recorded in the audit log as well as on the exchange header.
 """
 
 from __future__ import annotations
@@ -39,10 +42,14 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.data.models import (
+    CREDIT_SOURCE_EXCHANGE,
     DIFFERENCE_CUSTOMER_PAYS,
+    DIFFERENCE_CUSTOMER_RECEIVES,
     DIFFERENCE_NONE,
     EXCHANGE_COMPLETED,
+    PAYMENT_CREDIT,
     VALID_PAYMENT_METHODS,
+    CustomerCredit,
     Exchange,
     ExchangeItem,
     Product,
@@ -54,6 +61,11 @@ from app.data.repositories.sale_repository import SaleRepository
 from app.domain.errors import NotFoundError, ValidationError
 from app.domain.permissions import CAP_EXCHANGE, require_permission
 from app.domain.rules.validation import parse_quantity
+from app.domain.services.audit_service import (
+    ACTION_EXCHANGE_CREDIT,
+    ACTION_EXCHANGE_WINDOW_OVERRIDE,
+    AuditService,
+)
 from app.domain.services.inventory_service import REFERENCE_EXCHANGE, InventoryService
 from app.domain.services.sale_service import money2
 from app.domain.services.sync_service import SyncService
@@ -109,18 +121,22 @@ class ExchangeService:
         items: list[dict],
         payment_method: str | None = None,
         exchange_date: datetime | None = None,
+        override_reason: str | None = None,
     ) -> Exchange:
         """Complete one atomic exchange and return its header.
 
         ``items`` is a list of lines:
         ``{"original_product_id": int, "original_quantity": int,
         "replacement_product_id": int, "replacement_quantity": int}``.
+
+        ``override_reason``: when provided (Admin only), the 2-day window check
+        is waived. The reason is stored on the exchange header and audit log.
         """
         require_permission(user, CAP_EXCHANGE)
         sale = self.find_sale(user, receipt_no)
 
         exchange_date = exchange_date or datetime.now()
-        self._validate_window(sale, exchange_date)
+        self._validate_window(sale, exchange_date, override_reason)
 
         if not items:
             raise ValidationError("An exchange must contain at least one item.")
@@ -138,6 +154,7 @@ class ExchangeService:
             difference_amount=difference,
             difference_type=difference_type,
             payment_method=payment_method,
+            override_reason=(override_reason or "").strip() or None,
             status=EXCHANGE_COMPLETED,
         )
         self.exchanges.add(exchange)
@@ -182,6 +199,29 @@ class ExchangeService:
                 "replacement_price": str(ei.replacement_price),
             })
 
+        if difference_type == DIFFERENCE_CUSTOMER_RECEIVES:
+            credit = self._issue_store_credit(user, sale, exchange, difference)
+            sync.enqueue_create("customer_credit", credit.id, {
+                "sync_uuid": credit.sync_uuid,
+                "customer_id": credit.customer_id,
+                "amount": str(credit.amount),
+                "source": credit.source,
+                "exchange_id": credit.exchange_id,
+                "created_by": credit.created_by,
+            })
+
+        if exchange.override_reason:
+            AuditService(self.session).record(
+                user_id=user_record_id(user),
+                username=getattr(user, "username", None),
+                action=ACTION_EXCHANGE_WINDOW_OVERRIDE,
+                details={
+                    "receipt_no": receipt_no,
+                    "exchange_id": exchange.id,
+                    "reason": exchange.override_reason,
+                },
+            )
+
         for entry in lines:
             self.inventory.change_stock(
                 user,
@@ -214,10 +254,16 @@ class ExchangeService:
     # --- validation ------------------------------------------------------- #
 
     @staticmethod
-    def _validate_window(sale: Sale, exchange_date: datetime) -> None:
+    def _validate_window(
+        sale: Sale,
+        exchange_date: datetime,
+        override_reason: str | None = None,
+    ) -> None:
         if exchange_date < sale.sale_date:
             raise ValidationError("The exchange cannot be dated before the original sale.")
         if (exchange_date - sale.sale_date) > timedelta(days=EXCHANGE_WINDOW_DAYS):
+            if (override_reason or "").strip():
+                return
             raise ValidationError(
                 "The exchange window has expired. Exchanges are allowed within "
                 f"{EXCHANGE_WINDOW_DAYS} days of the original sale."
@@ -317,15 +363,13 @@ class ExchangeService:
             return DIFFERENCE_NONE
         if difference > 0:
             return DIFFERENCE_CUSTOMER_PAYS
-        raise ValidationError(
-            "This exchange would give money back to the customer. The settlement "
-            "for that case is not yet confirmed, so the exchange cannot be "
-            "completed (see OPEN_DECISIONS.md)."
-        )
+        # Customer is owed money: the no-cash rule forbids a refund, so the
+        # owed amount is granted as store credit (source EXCHANGE).
+        return DIFFERENCE_CUSTOMER_RECEIVES
 
     @staticmethod
     def _payment(difference_type: str, payment_method: str | None) -> str | None:
-        if difference_type == DIFFERENCE_NONE:
+        if difference_type in (DIFFERENCE_NONE, DIFFERENCE_CUSTOMER_RECEIVES):
             return None
         value = (payment_method or "").strip().upper()
         if value not in VALID_PAYMENT_METHODS:
@@ -333,4 +377,41 @@ class ExchangeService:
                 f"Payment method '{payment_method}' is not supported. "
                 "Only Bank POS and Bank Transfer are accepted."
             )
+        if value == PAYMENT_CREDIT:
+            raise ValidationError(
+                "Store credit cannot be used to pay an exchange difference; "
+                "credit is applied at the next sale."
+            )
         return value
+
+    def _issue_store_credit(
+        self, user, sale: Sale, exchange: Exchange, difference: Decimal
+    ) -> CustomerCredit:
+        """Record the customer-owed amount as store credit on the customer's ledger.
+
+        The customer owes the view that a negative difference means the shop
+        hands money back. Instead the LEDGER grants a positive credit with
+        source ``EXCHANGE``; the balance is the sum of EXCHANGE rows minus
+        SALE_PAYMENT rows, so a future sale consuming credit subtracts it.
+        """
+        credit = CustomerCredit(
+            customer_id=sale.customer_id,
+            amount=money2(abs(difference)),
+            source=CREDIT_SOURCE_EXCHANGE,
+            exchange_id=exchange.id,
+            created_by=user_record_id(user),
+        )
+        self.session.add(credit)
+        self.session.flush()
+        AuditService(self.session).record(
+            user_id=user_record_id(user),
+            username=getattr(user, "username", None),
+            action=ACTION_EXCHANGE_CREDIT,
+            details={
+                "customer_id": sale.customer_id,
+                "exchange_id": exchange.id,
+                "receipt_no": sale.receipt_no,
+                "amount": str(credit.amount),
+            },
+        )
+        return credit

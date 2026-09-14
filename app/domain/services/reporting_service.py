@@ -154,6 +154,16 @@ class ReportingService:
     def end_of_day_report(
         self, user: CurrentUser, target_date: date
     ) -> EndOfDayReport:
-        """Complete daily summary. Admin sees all; Cashier sees own sales."""
+        """Complete daily summary. Admin sees all; Cashier sees own sales.
+
+        A cashier is gated by ``CAP_VIEW_OWN_SALES`` and the report (sales,
+        COGS and payments) is scoped to their own sales for the day; expenses
+        remain shop-wide. Admin is gated by ``CAP_VIEW_REPORTS``.
+        """
+        if user.role == "CASHIER":
+            require_permission(user, CAP_VIEW_OWN_SALES)
+            return self.repo.end_of_day_report(
+                target_date, cashier_id=user_record_id(user)
+            )
         require_permission(user, CAP_VIEW_REPORTS)
         return self.repo.end_of_day_report(target_date)

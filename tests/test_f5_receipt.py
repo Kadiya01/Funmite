@@ -292,7 +292,7 @@ def test_layout_sections_in_approved_order():
     assert r("Receipt No : FUN-20260904-001") < r("ITEM")
     assert r("ITEM") < r("SUBTOTAL")
     subtotal_idx = next(i for i, line in enumerate(lines) if line.strip().startswith("SUBTOTAL"))
-    total_idx = next(i for i, line in enumerate(lines) if line.strip().startswith("TOTAL") and "N48,150" in line)
+    total_idx = next(i for i, line in enumerate(lines) if line.strip().startswith("TOTAL") and "NGN48,150" in line)
     assert subtotal_idx < total_idx
     assert r("TOTAL") < r("PAYMENT")
     assert r("PAYMENT") < r("BANK POS")
@@ -324,7 +324,7 @@ def test_long_product_name_wraps_continuation_without_numeric_columns():
     data = ReceiptData(**{**data.__dict__, "lines": [ReceiptLine(name=long_name, quantity=1, unit_price=Decimal("12500"), total=Decimal("12500"))]})
     lines = _text(data)
     first = next(line for line in lines if long_name.split()[0] in line)
-    assert "N12,500" in first  # price + total on the first line
+    assert "NGN12,500" in first  # price + total on the first line
     start = lines.index(first)
     block = []
     for line in lines[start + 1 :]:
@@ -366,23 +366,23 @@ def test_item_values_right_aligned_matching_total_column():
     total_line = totals[-1]
     # LEFT is where the totals are: the money starts at the same column
     # as the item TOTAL of a 7-char amount.
-    n = total_line.find("N48,150")
+    n = total_line.find("NGN48,150")
     assert n != -1
-    # "N48,150" is right-aligned within a 10-char column at the end of the line.
-    assert total_line.rstrip().endswith("N48,150")
+    # "NGN48,150" is right-aligned within a 10-char column at the end of the line.
+    assert total_line.rstrip().endswith("NGN48,150")
     assert len(total_line.rstrip()) == PRINTABLE_WIDTH
 
 
 def test_totals_and_payment_section():
     text = "\n".join(_text())
-    assert "SUBTOTAL" in text and "N53,500" in text
-    assert "DISCOUNT" in text and "N5,350" in text
-    assert "TOTAL" in text and "N48,150" in text
+    assert "SUBTOTAL" in text and "NGN53,500" in text
+    assert "DISCOUNT" in text and "NGN5,350" in text
+    assert "TOTAL" in text and "NGN48,150" in text
     assert "Payment Method  : BANK POS" in text
-    assert "Amount Paid" in text and "N50,000" in text
-    assert "Change" in text and "N1,850" in text
+    assert "Amount Paid" in text and "NGN50,000" in text
+    assert "Change" in text and "NGN1,850" in text
     amount = next(line for line in _text() if line.strip().startswith("Amount Paid"))
-    assert amount.rstrip().endswith("N50,000")
+    assert amount.rstrip().endswith("NGN50,000")
 
 
 def test_footer_and_tagline():
@@ -398,7 +398,7 @@ def test_footer_and_tagline():
 def test_discount_row_present():
     lines = _text()
     discount = next(line for line in lines if line.strip().startswith("DISCOUNT"))
-    assert "N5,350" in discount
+    assert "NGN5,350" in discount
 
 
 # ─── ESC/POS ─────────────────────────────────────────────────────────────
@@ -473,7 +473,7 @@ def test_esp_emphasises_branding_and_grand_thank():
 
 def test_esp_emphasises_totals_line():
     out = EscPosRenderer().render(_receipt())
-    padded = f"{'TOTAL':>37} {'N48,150':>10}"  # the full 48-char line, not stripped
+    padded = f"{'TOTAL':>37} {'NGN48,150':>10}"  # the full 48-char line, not stripped
     marker = EMPHASIS_ON + padded.encode("cp437")
     assert marker in out
 
@@ -559,7 +559,7 @@ def test_deterministic_full_chain_preview():
     assert text.split("\n")[-1].strip() == "Luxury Fashion for Women Who Love to Stand Out"
     money = format_money(Decimal("48150"))
     assert money == "₦48,150"
-    assert money.replace("₦", "N") in text
+    assert money.replace("₦", "NGN") in text
 
 
 def test_independent_of_payment_amount_overpay_change_math():
@@ -582,7 +582,7 @@ def test_independent_of_payment_amount_overpay_change_math():
         barcode="FUN-20260904-001",
     )
     text = "\n".join(_text(data))
-    assert "Change" in text and "N11,850" in text
+    assert "Change" in text and "NGN11,850" in text
 
 
 def test_missing_receipt_raises_not_found(session_factory, session):

@@ -1,7 +1,7 @@
 # Funmite POS — Client UAT Checklist
 
 **Project:** Funmite Clothing & Beyond
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Date:** _______________
 **Client Representative:** _______________
 **Developer:** _______________

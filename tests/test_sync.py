@@ -110,7 +110,7 @@ class TestSyncMetadataColumns:
 
     def test_migration_version_is_4(self, engine):
         from app.data.migrations import runner
-        assert runner.current_version(engine) == 4
+        assert runner.current_version(engine) == 5
 
 
 # ---------------------------------------------------------------------------

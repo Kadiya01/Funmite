@@ -91,6 +91,15 @@ class MySalesPage(QWidget):
         )
         layout.addWidget(self.summary_label)
 
+        # End of Day (own sales only)
+        self.eod_label = QLabel("", self)
+        self.eod_label.setStyleSheet(
+            f"background-color: {C.CARD}; border: 1px solid {C.BORDER}; "
+            f"border-radius: {S.RADIUS_MD}; padding: 10px 16px; "
+            f"font-size: {F.SIZE_SM}; font-weight: {F.WEIGHT_MEDIUM}; color: {C.FG_SECONDARY};"
+        )
+        layout.addWidget(self.eod_label)
+
         # Sales table
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(
@@ -120,6 +129,7 @@ class MySalesPage(QWidget):
         with session_scope(self.session_factory) as session:
             svc = ReportingService(session)
             summary = svc.sales_report(self.current_user, start, end)
+            eod = svc.end_of_day_report(self.current_user, date.today())
 
         rows = summary.rows
         self.table.setRowCount(len(rows))
@@ -140,4 +150,10 @@ class MySalesPage(QWidget):
         count = len(rows)
         self.summary_label.setText(
             f"  Transactions: {count}     Total Sales: {format_money(total_sales)}"
+        )
+        self.eod_label.setText(
+            f"  End of Day (My Sales) — Transactions: {eod.transaction_count}  "
+            f"Total: {format_money(eod.total_sales)}  "
+            f"POS: {format_money(eod.pos_total)}  "
+            f"Transfer: {format_money(eod.transfer_total)}"
         )

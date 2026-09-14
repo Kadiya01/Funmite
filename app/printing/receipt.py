@@ -360,8 +360,8 @@ def render_receipt_text(receipt: ReceiptData, width: int = PRINTABLE_WIDTH) -> l
 
     # ── Item rows ───────────────────────────────────────────────────────
     for line in receipt.lines:
-        price_str = format_money(line.unit_price).replace("₦", "N")
-        total_str = format_money(line.total).replace("₦", "N")
+        price_str = format_money(line.unit_price).replace("₦", "NGN")
+        total_str = format_money(line.total).replace("₦", "NGN")
         rows = _format_item_row(line.name, line.quantity, price_str, total_str, name_w, qty_w)
         for row in rows:
             out.append(row)
@@ -370,9 +370,9 @@ def render_receipt_text(receipt: ReceiptData, width: int = PRINTABLE_WIDTH) -> l
     out.append(dash)
 
     # ── Totals ──────────────────────────────────────────────────────────
-    sub_str = format_money(receipt.subtotal).replace("₦", "N")
-    disc_str = format_money(receipt.discount_amount).replace("₦", "N")
-    tot_str = format_money(receipt.total).replace("₦", "N")
+    sub_str = format_money(receipt.subtotal).replace("₦", "NGN")
+    disc_str = format_money(receipt.discount_amount).replace("₦", "NGN")
+    tot_str = format_money(receipt.total).replace("₦", "NGN")
     out.append(_totals_line("SUBTOTAL", sub_str, w))
     out.append(_totals_line("DISCOUNT", disc_str, w))
     out.append(_totals_line("TOTAL", tot_str, w))
@@ -383,9 +383,9 @@ def render_receipt_text(receipt: ReceiptData, width: int = PRINTABLE_WIDTH) -> l
     # ── Payment section ─────────────────────────────────────────────────
     out.append(_center(receipt.payment_header, w))
     out.append(dash)
-    paid_str = format_money(receipt.amount_paid).replace("₦", "N")
+    paid_str = format_money(receipt.amount_paid).replace("₦", "NGN")
     change = receipt.amount_paid - receipt.total
-    change_str = format_money(change).replace("₦", "N")
+    change_str = format_money(change).replace("₦", "NGN")
     out.append(_payment_line("Payment Method", receipt.payment_label, align_value=False))
     out.append(_payment_line("Amount Paid", paid_str))
     out.append(_payment_line("Change", change_str))

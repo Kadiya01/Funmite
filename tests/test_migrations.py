@@ -9,7 +9,7 @@ from app.data.migrations import runner
 
 
 def test_schema_is_up_to_date(engine):
-    assert runner.current_version(engine) == 4
+    assert runner.current_version(engine) == 5
 
 
 def test_audit_logs_table_is_created_by_migration(engine):
@@ -22,7 +22,7 @@ def test_downgrade_to_one_removes_audit_logs_then_upgrade_restores(engine):
     assert "audit_logs" not in set(inspect(engine).get_table_names())
 
     runner.upgrade(engine)
-    assert runner.current_version(engine) == 4
+    assert runner.current_version(engine) == 5
     assert "audit_logs" in set(inspect(engine).get_table_names())
 
 

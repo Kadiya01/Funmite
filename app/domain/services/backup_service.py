@@ -6,8 +6,13 @@ Uses Python's ``sqlite3.Connection.backup()`` for atomic backup and
 layer via ``CAP_BACKUP`` and ``CAP_RESTORE``.
 
 Backup files are stored in the configured backup directory as
-``funmite_YYYYMMDD_HHMMSS.db``.  Retention is an open decision — all
-backups are kept until the user manually deletes them.
+``funmite_YYYYMMDD_HHMMSS.db``.  Old backups are purged automatically after
+each new backup: the newest ``keep_count`` backups are always retained and any
+backup older than ``max_age_days`` is also removed.  Both limits are
+environment-tunable (``FUNMITE_BACKUP_KEEP``, ``FUNMITE_BACKUP_MAX_AGE_DAYS``)
+or settable per service instance; a value of 0 disables the corresponding
+rule.  A backup is only removed when BOTH rules apply, so the newest backups
+are never deleted and no recently-created backup is ever purged.
 
 A restore always creates a pre-restore safety backup first, so the current
 database state is never silently lost.
@@ -15,6 +20,7 @@ database state is never silently lost.
 
 from __future__ import annotations
 
+import os
 import shutil
 import sqlite3
 import uuid
@@ -33,6 +39,20 @@ from app.domain.session import CurrentUser, user_record_id
 BACKUP_PREFIX = "funmite_"
 BACKUP_SUFFIX = ".db"
 _BACKUP_MAGIC = b"SQLite format 3\x00"
+
+DEFAULT_BACKUP_KEEP = 30
+DEFAULT_BACKUP_MAX_AGE_DAYS = 90
+
+
+def _env_int(name: str, default: int) -> int:
+    """Read an optional integer env var, returning ``default`` when unset/invalid."""
+    value = os.getenv(name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
 
 
 # --- Result dataclasses --------------------------------------------------- #
@@ -83,11 +103,25 @@ class BackupService:
         *,
         db_path: Path,
         backup_dir: Path,
+        keep_count: int | None = None,
+        max_age_days: int | None = None,
     ) -> None:
         self.session = session
         self.db_path = db_path
         self.backup_dir = backup_dir
         self.backup_dir.mkdir(parents=True, exist_ok=True)
+        self.keep_count = (
+            keep_count
+            if keep_count is not None
+            else _env_int("FUNMITE_BACKUP_KEEP", DEFAULT_BACKUP_KEEP)
+        )
+        self.max_age_days = (
+            max_age_days
+            if max_age_days is not None
+            else _env_int(
+                "FUNMITE_BACKUP_MAX_AGE_DAYS", DEFAULT_BACKUP_MAX_AGE_DAYS
+            )
+        )
 
     # -- Backup ------------------------------------------------------------ #
 
@@ -126,6 +160,9 @@ class BackupService:
             # Audit log
             self._audit_backup(user, filename, backup_path)
 
+            # Auto-purge old backups
+            self.purge()
+
             return BackupResult(
                 success=True,
                 backup_path=str(backup_path),
@@ -143,46 +180,84 @@ class BackupService:
     def list_backups(self, user: CurrentUser) -> list[BackupInfo]:
         """List all backup files in the backup directory, newest first."""
         require_permission(user, CAP_BACKUP)
+        backups = self._scan_backups()
+        backups.sort(key=lambda b: b.created_at, reverse=True)
+        return backups
 
+    # -- Purge -------------------------------------------------------------- #
+
+    def purge(
+        self,
+        *,
+        keep_count: int | None = None,
+        max_age_days: int | None = None,
+    ) -> int:
+        """Delete old backup files, returning how many were removed.
+
+        A backup is removed only when BOTH retention rules apply: it is beyond
+        the ``keep_count`` newest backups AND older than ``max_age_days``.  A
+        limit of 0 (or negative) disables that rule.  This run automatically
+        after every successful backup (including the pre-restore safety
+        backup), so backups never accumulate without bound.
+        """
+        keep = keep_count if keep_count is not None else self.keep_count
+        age_days = max_age_days if max_age_days is not None else self.max_age_days
+
+        backups = self._scan_backups()
+        backups.sort(key=lambda b: b.created_at, reverse=True)
+
+        now = datetime.now()
+        removed = 0
+        for index, backup in enumerate(backups):
+            beyond_keep = keep > 0 and index >= keep
+            older_than = age_days > 0 and (now - backup.created_at).days > age_days
+            if beyond_keep and older_than:
+                Path(backup.path).unlink(missing_ok=True)
+                removed += 1
+        return removed
+
+    # -- Scan -------------------------------------------------------------- #
+
+    def _scan_backups(self) -> list[BackupInfo]:
+        """Enumerate backup files in the backup directory (no permission gate)."""
         backups: list[BackupInfo] = []
-        for entry in sorted(self.backup_dir.iterdir(), reverse=True):
+        for entry in self.backup_dir.iterdir():
             if (
                 entry.is_file()
                 and entry.name.startswith(BACKUP_PREFIX)
                 and entry.name.endswith(BACKUP_SUFFIX)
             ):
-                # Parse the datetime from the filename
-                try:
-                    date_str = entry.name[len(BACKUP_PREFIX) : -len(BACKUP_SUFFIX)]
-                    # Try new format: YYYYMMDD_HHMMSS_<8hex> (pre_restore_ prefix also possible)
-                    # Strip pre_restore_ prefix if present
-                    parse_str = date_str
-                    if parse_str.startswith("pre_restore_"):
-                        parse_str = parse_str[len("pre_restore_"):]
-                    # The UUID part is after the second underscore in the timestamp
-                    # Format: YYYYMMDD_HHMMSS_<hex8>
-                    parts = parse_str.split("_")
-                    if len(parts) >= 3:
-                        date_part = "_".join(parts[:2])  # YYYYMMDD_HHMMSS
-                        created_at = datetime.strptime(date_part, "%Y%m%d_%H%M%S")
-                    else:
-                        created_at = datetime.strptime(parse_str, "%Y%m%d_%H%M%S_%f")
-                except ValueError:
-                    try:
-                        date_str = entry.name[len(BACKUP_PREFIX) : -len(BACKUP_SUFFIX)]
-                        created_at = datetime.strptime(date_str, "%Y%m%d_%H%M%S")
-                    except ValueError:
-                        created_at = datetime.fromtimestamp(entry.stat().st_mtime)
-
                 backups.append(
                     BackupInfo(
                         filename=entry.name,
                         path=str(entry),
                         size_bytes=entry.stat().st_size,
-                        created_at=created_at,
+                        created_at=self._parse_backup_time(entry),
                     )
                 )
         return backups
+
+    @staticmethod
+    def _parse_backup_time(entry: Path) -> datetime:
+        """Extract ``created_at`` from a backup filename (with fallbacks)."""
+        bare = entry.name[len(BACKUP_PREFIX) : -len(BACKUP_SUFFIX)]
+        # pre_restore_<timestamp>_<hex8>
+        parse_str = bare
+        if parse_str.startswith("pre_restore_"):
+            parse_str = parse_str[len("pre_restore_") :]
+        parts = parse_str.split("_")
+        if len(parts) >= 3 and parts[2].isalnum():
+            date_part = "_".join(parts[:2])  # YYYYMMDD_HHMMSS
+            try:
+                return datetime.strptime(date_part, "%Y%m%d_%H%M%S")
+            except ValueError:
+                pass
+        for fmt in ("%Y%m%d_%H%M%S", "%Y%m%d_%H%M%S_%f"):
+            try:
+                return datetime.strptime(parse_str, fmt)
+            except ValueError:
+                continue
+        return datetime.fromtimestamp(entry.stat().st_mtime)
 
     # -- Validate ----------------------------------------------------------- #
 
@@ -240,6 +315,8 @@ class BackupService:
                     success=False,
                     error="Pre-restore backup validation failed.",
                 )
+            # Auto-purge old backups
+            self.purge()
         except Exception as exc:
             return RestoreResult(
                 success=False,

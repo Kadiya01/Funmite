@@ -19,14 +19,19 @@ from sqlalchemy.exc import IntegrityError
 
 from app.data.db import session_scope
 from app.data.models import (
+    CREDIT_SOURCE_EXCHANGE,
     DIFFERENCE_CUSTOMER_PAYS,
+    DIFFERENCE_CUSTOMER_RECEIVES,
     DIFFERENCE_NONE,
     EXCHANGE_COMPLETED,
     InventoryLog,
+    PAYMENT_CREDIT,
     PAYMENT_POS,
     PAYMENT_TRANSFER,
     ROLE_ADMIN,
     ROLE_CASHIER,
+    AuditLog,
+    CustomerCredit,
     Exchange,
     ExchangeItem,
     Payment,
@@ -227,6 +232,71 @@ def test_exchange_before_the_sale_rejected(session_factory, session):
             sale.receipt_no,
             _lines((gown.id, 1, ankara.id, 1)),
             exchange_date=sale.sale_date - timedelta(days=1),
+        )
+
+
+def test_admin_override_allows_late_exchange_and_audits(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    gown = _product(session, name="Gown")
+    ankara = _product(session, name="Ankara", selling_price="40000")
+    sale = make_recent_sale(session, customer, admin, days_old=6, items=[(gown, 1)])
+    session.commit()
+
+    exchange = _exchange(
+        session_factory,
+        admin,
+        sale.receipt_no,
+        _lines((gown.id, 1, ankara.id, 1)),
+        override_reason="Customer was traveling",
+    )
+    assert exchange.original_sale_id == sale.id
+    assert exchange.override_reason == "Customer was traveling"
+
+    with session_factory() as check:
+        audit = check.scalar(
+            select(AuditLog).where(AuditLog.action == "EXCHANGE_WINDOW_OVERRIDE")
+        )
+        assert audit is not None
+        assert audit.user_id == admin.id
+        assert "traveling" in (audit.details or "")
+        header = check.get(Exchange, exchange.id)
+        assert header.override_reason == "Customer was traveling"
+
+
+def test_without_override_reason_late_exchange_still_rejected(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    gown = _product(session, name="Gown")
+    ankara = _product(session, name="Ankara", selling_price="40000")
+    sale = make_recent_sale(session, customer, admin, days_old=6, items=[(gown, 1)])
+    session.commit()
+
+    with pytest.raises(ValidationError, match="window"):
+        _exchange(
+            session_factory,
+            admin,
+            sale.receipt_no,
+            _lines((gown.id, 1, ankara.id, 1)),
+        )
+
+
+def test_override_reason_does_not_waive_the_before_sale_rule(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    gown = _product(session, name="Gown")
+    ankara = _product(session, name="Ankara", selling_price="40000")
+    sale = make_recent_sale(session, customer, admin, days_old=1, items=[(gown, 1)])
+    session.commit()
+
+    with pytest.raises(ValidationError, match="before the original sale"):
+        _exchange(
+            session_factory,
+            admin,
+            sale.receipt_no,
+            _lines((gown.id, 1, ankara.id, 1)),
+            exchange_date=sale.sale_date - timedelta(days=1),
+            override_reason="Extra override",
         )
 
 
@@ -590,7 +660,7 @@ def test_historical_original_price_and_current_replacement_price(session_factory
         assert item.replacement_price == Decimal("60000")  # current selling price
 
 
-def test_customer_owed_money_blocked_without_settlement(session_factory, session):
+def test_customer_owed_sets_store_credit(session_factory, session):
     admin = _admin(session)
     customer = _customer(session)
     gown = _product(session, name="Gown", selling_price="35000")
@@ -598,11 +668,64 @@ def test_customer_owed_money_blocked_without_settlement(session_factory, session
     sale = make_recent_sale(session, customer, admin, days_old=1, items=[(gown, 1)])
     session.commit()
 
-    with pytest.raises(ValidationError, match="money back"):
-        _exchange(session_factory, admin, sale.receipt_no, _lines((gown.id, 1, ankara.id, 1)))
+    exchange = _exchange(
+        session_factory, admin, sale.receipt_no, _lines((gown.id, 1, ankara.id, 1))
+    )
+
+    assert exchange.difference_type == DIFFERENCE_CUSTOMER_RECEIVES
+    assert exchange.difference_amount == Decimal("-15000")
+    assert exchange.payment_method is None
 
     with session_factory() as check:
-        assert _count(check, Exchange) == 0
+        credit = check.scalar(select(CustomerCredit))
+        assert credit is not None
+        assert credit.customer_id == customer.id
+        assert credit.amount == Decimal("15000")
+        assert credit.source == CREDIT_SOURCE_EXCHANGE
+        assert credit.exchange_id == exchange.id
+        assert credit.created_by == admin.id
+
+
+def test_customer_owed_credit_aggregates_multiple_lines(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    gown = _product(session, name="Gown", selling_price="35000")
+    top = _product(session, name="Top", selling_price="20000")
+    ankara = _product(session, name="Ankara", selling_price="20000")
+    buba = _product(session, name="Buba", selling_price="10000")
+    sale = make_recent_sale(
+        session, customer, admin, days_old=1, items=[(gown, 1), (top, 1)]
+    )
+    session.commit()
+
+    exchange = _exchange(
+        session_factory,
+        admin,
+        sale.receipt_no,
+        _lines((gown.id, 1, ankara.id, 1), (top.id, 1, buba.id, 1)),
+    )
+    # returned 35000 + 20000 = 55000; replacement 20000 + 10000 = 30000
+    assert exchange.difference_type == DIFFERENCE_CUSTOMER_RECEIVES
+    with session_factory() as check:
+        credit = check.scalar(select(CustomerCredit))
+        assert credit.amount == Decimal("25000")
+
+
+def test_customer_owed_exchange_within_window_still_audited(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    gown = _product(session, name="Gown", selling_price="35000")
+    ankara = _product(session, name="Ankara", selling_price="20000")
+    sale = make_recent_sale(session, customer, admin, days_old=1, items=[(gown, 1)])
+    session.commit()
+
+    _exchange(session_factory, admin, sale.receipt_no, _lines((gown.id, 1, ankara.id, 1)))
+
+    with session_factory() as check:
+        audit = check.scalar(select(AuditLog).where(AuditLog.action == "EXCHANGE_CREDIT"))
+        assert audit is not None
+        assert audit.user_id == admin.id
+        assert "15000" in (audit.details or "")
 
 
 def test_payment_method_required_when_customer_pays(session_factory, session):
@@ -620,7 +743,7 @@ def test_payment_method_required_when_customer_pays(session_factory, session):
         )
 
 
-@pytest.mark.parametrize("method", ["CASH", "CREDIT", "cash", "cheque", "POS CASH", ""])
+@pytest.mark.parametrize("method", ["CASH", "cash", "cheque", "POS CASH", ""])
 def test_cash_and_unsupported_payment_methods_rejected(session_factory, session, method):
     admin = _admin(session)
     customer = _customer(session)
@@ -633,6 +756,21 @@ def test_cash_and_unsupported_payment_methods_rejected(session_factory, session,
         _exchange(
             session_factory, admin, sale.receipt_no, _lines((gown.id, 1, ankara.id, 1)),
             payment_method=method,
+        )
+
+
+def test_credit_never_pays_an_exchange_difference(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    gown = _product(session, name="Gown", selling_price="35000")
+    ankara = _product(session, name="Ankara", selling_price="40000")
+    sale = make_recent_sale(session, customer, admin, days_old=1, items=[(gown, 1)])
+    session.commit()
+
+    with pytest.raises(ValidationError, match="cannot be used to pay an exchange"):
+        _exchange(
+            session_factory, admin, sale.receipt_no, _lines((gown.id, 1, ankara.id, 1)),
+            payment_method=PAYMENT_CREDIT,
         )
 
 

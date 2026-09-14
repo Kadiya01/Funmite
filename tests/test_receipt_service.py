@@ -2,7 +2,7 @@
 
 Covers building detached receipt data from a completed sale, the approved
 discount label format, printing through the printer abstraction, and the
-Admin-only reprint flow (UC-06).
+shared reprint flow (UC-06, Admin + Cashier).
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import pytest
 
 from app.data.db import session_scope
 from app.data.models import DISCOUNT_PERCENT, PAYMENT_POS, PAYMENT_TRANSFER, ROLE_ADMIN, ROLE_CASHIER, Sale
-from app.domain.errors import AuthorizationError, NotFoundError
+from app.domain.errors import NotFoundError, ValidationError
 from app.domain.services.receipt_service import ReceiptService
 from app.domain.services.sale_service import SaleService
 from app.printing.printer import EscPosFilePrinter, InMemoryPrinter
@@ -172,12 +172,24 @@ def test_admin_can_reprint(session_factory, session):
     assert len(printer.receipts) == 1
 
 
-def test_cashier_cannot_reprint(session_factory, session):
+def test_cashier_can_reprint(session_factory, session):
     cashier = make_user(session, role=ROLE_CASHIER)
     sale = _complete_sale(session_factory, session)
-    with pytest.raises(AuthorizationError):
+    printer = InMemoryPrinter()
+    with session_scope(session_factory) as session:
+        receipt = ReceiptService(session).reprint(cashier, sale.receipt_no, printer)
+    assert receipt.receipt_no == sale.receipt_no
+    assert len(printer.receipts) == 1
+
+
+def test_cancelled_sale_cannot_be_reprinted(session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    sale = _complete_sale(session_factory, session)
+    with session_scope(session_factory) as session:
+        SaleService(session).cancel_sale(admin, receipt_no=sale.receipt_no, reason="Reverted")
+    with pytest.raises(ValidationError, match="cancelled sale"):
         with session_scope(session_factory) as session:
-            ReceiptService(session).reprint(cashier, sale.receipt_no, InMemoryPrinter())
+            ReceiptService(session).reprint(admin, sale.receipt_no, InMemoryPrinter())
 
 
 def test_reprint_unknown_receipt_raises_not_found(session_factory, session):

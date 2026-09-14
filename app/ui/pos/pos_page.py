@@ -47,7 +47,13 @@ from app.data.models import (
 from app.data.repositories.customer_repository import CustomerRepository
 from app.data.repositories.product_repository import ProductRepository
 from app.domain.errors import NotFoundError, ValidationError
-from app.domain.permissions import CAP_CREATE_PRODUCT, CAP_DISCOUNT, CAP_EXCHANGE, CAP_VIEW_REPORTS
+from app.domain.permissions import (
+    CAP_CANCEL_SALE,
+    CAP_CREATE_PRODUCT,
+    CAP_DISCOUNT,
+    CAP_EXCHANGE,
+    CAP_REPRINT_RECEIPT,
+)
 from app.domain.services.customer_service import CustomerService
 from app.domain.services.device_service import DeviceIdentity
 from app.domain.services.product_service import ProductService
@@ -226,7 +232,7 @@ class PosPage(QWidget):
             border-radius: {S.RADIUS_FULL};
         """)
         row.addWidget(self.status_label)
-        if self.current_user.can(CAP_VIEW_REPORTS):
+        if self.current_user.can(CAP_REPRINT_RECEIPT):
             self.reprint_button = QPushButton("Reprint Receipt…", self)
             self.reprint_button.setObjectName("btnSecondary")
             self.reprint_button.clicked.connect(self._prompt_reprint)
@@ -236,6 +242,11 @@ class PosPage(QWidget):
             self.exchange_button.setObjectName("btnSecondary")
             self.exchange_button.clicked.connect(self._open_exchange)
             row.addWidget(self.exchange_button)
+        if self.current_user.can(CAP_CANCEL_SALE):
+            self.cancel_sale_button = QPushButton("Cancel Sale…", self)
+            self.cancel_sale_button.setObjectName("btnSecondary")
+            self.cancel_sale_button.clicked.connect(self._prompt_cancel)
+            row.addWidget(self.cancel_sale_button)
         self.new_sale_button = QPushButton("New Sale", self)
         self.new_sale_button.setObjectName("btnSecondary")
         self.new_sale_button.clicked.connect(self._reset_cart)
@@ -831,7 +842,7 @@ class PosPage(QWidget):
                     products.append(product)
         self.low_stock_notifier(self, products)
 
-    # --- reprint (Admin) -------------------------------------------------- #
+    # --- reprint ----------------------------------------------------------- #
 
     def _prompt_reprint(self) -> None:
         receipt_no, ok = QInputDialog.getText(
@@ -841,7 +852,7 @@ class PosPage(QWidget):
             self.reprint_receipt(receipt_no.strip())
 
     def reprint_receipt(self, receipt_no: str) -> None:
-        """Reprint a completed sale's receipt (Admin only, UC-06)."""
+        """Reprint a previous sale's receipt (UC-06, shared capability)."""
         try:
             with session_scope(self.session_factory) as session:
                 ReceiptService(session).reprint(
@@ -862,6 +873,43 @@ class PosPage(QWidget):
             parent=self,
         )
         dialog.exec()
+
+    # --- cancel sale (Admin) ----------------------------------------------- #
+
+    def _prompt_cancel(self) -> None:
+        receipt_no, ok = QInputDialog.getText(
+            self, "Cancel Sale", "Receipt number to cancel:", text=""
+        )
+        if not (ok and receipt_no.strip()):
+            return
+        reason, ok = QInputDialog.getText(
+            self,
+            "Cancel Sale",
+            "Reason for cancelling (required):",
+            text="",
+        )
+        if not (ok and reason.strip()):
+            return
+        self.cancel_sale(receipt_no.strip(), reason.strip())
+
+    def cancel_sale(self, receipt_no: str, reason: str) -> None:
+        """Admin reverses + voids a completed sale (UC — cancel sale)."""
+        try:
+            with session_scope(self.session_factory) as session:
+                SaleService(session).cancel_sale(
+                    self.current_user, receipt_no=receipt_no, reason=reason
+                )
+        except (NotFoundError, ValidationError) as exc:
+            self._show_error(str(exc))
+            return
+        except Exception:
+            self._show_error("Could not cancel the sale. Please try again.")
+            return
+        QMessageBox.information(
+            self,
+            "Sale Cancelled",
+            f"Sale {receipt_no} was cancelled and the stock was restored.",
+        )
 
     # --- feedback --------------------------------------------------------- #
 

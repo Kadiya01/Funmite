@@ -4,19 +4,58 @@ Unresolved client decisions. Do not invent these rules. When a phase hits one
 of these boundaries, record the context here and stop that branch unless the
 decision does not block the phase.
 
+## v1.3.0 confirmed batch (shop-use decisions)
+
+The following were confirmed in a single batch before the v1.3.0 release:
+
+- **Two-PC sync** -- RESOLVED: keep the existing dual-SQLite + cloud sync (Option A).
+- **Exchange customer-owed (price-difference) refund** -- RESOLVED: settled as
+  **store credit** tracked in the `customer_credits` ledger
+  (source `EXCHANGE` adds, `SALE_PAYMENT` subtracts; amount always positive).
+- **Store-credit spend** -- RESOLVED: a customer's store-credit balance is
+  spendable at the till on the customer's next sale (`PAYMENT_CREDIT`); the
+  balance can never go below zero.
+- **Admin 2-day exchange override** -- RESOLVED: the Admin may override the
+  2-day exchange window with a confirmation prompt and an audit record
+  (`EXCHANGE_WINDOW_OVERRIDE`).
+- **Cancel sale** -- RESOLVED: an Admin may reverse + void a finished sale
+  (`CAP_CANCEL_SALE`). The sale is marked `CANCELLED` (never deleted), stock is
+  restored with a matching `inventory_log`, and store credit paid on the sale
+  is refunded to the customer's ledger.
+- **Cashier end-of-day** -- RESOLVED: the cashier's EOD report shows only their
+  own sales/COGS/payments for the day (expenses remain shop-wide),
+  gated by `CAP_VIEW_OWN_SALES`.
+- **Cashier reprint** -- RESOLVED: reprint is allowed for Admin **and** Cashier
+  via the shared `CAP_REPRINT_RECEIPT`; cancelled sales can never be reprinted.
+- **Multi-item exchange** -- RESOLVED: keep multi-item exchanges.
+- **Printing the naira sign** -- RESOLVED: ESC/POS prints `NGN` (PC437 has no
+  naira glyph); on-screen text keeps `₦`.
+- **Backup retention** -- RESOLVED: backups are purged automatically after each
+  backup (keep newest `FUNMITE_BACKUP_KEEP`, default 30; delete older than
+  `FUNMITE_BACKUP_MAX_AGE_DAYS`, default 90 days; both rules must apply; 0
+  disables a rule).
+- **Release/versioning** -- RESOLVED: ship this batch as **v1.3.0** and rebuild
+  the standalone `.exe`.
+
+Still open after the batch (non-blocking): exact Excel CSV column headers for
+the product import template, whether a payment reference is mandatory, and the
+allowed set of expense categories.
+
 ## From the master specification (section 8)
 
 - **Receipt branding/footer** -- RESOLVED: Wireframe candidate defaults implemented in `ReceiptBuilder`. Final text configurable in code constants; no functional blocker.
 - **Discount limits** -- RESOLVED: Admin-only discount confirmed (approved matrix). Implemented in Phase 05. `PERCENT` and `FIXED` with no ceiling; cannot make total negative.
 - **Receipt numbering format** -- RESOLVED: `FUN-YYYYMMDD-NNN` candidate implemented in Phase 05. Used in production. Prefix/digits localized in `sale_service.py`.
-- **Product import columns** — exact columns and format for bulk import.
-- **Exchange refund / price-difference behavior** — how a difference is settled
-  under the no-cash rule, especially when the customer is owed money.
-- **Multi-item exchange rules** — how exchanges spanning multiple items are
-  handled.
-- **Backup retention / destination** — RESOLVED: All backups are kept in the
-  configured backup directory (`FUNMITE_BACKUP_DIR`, default `<project_root>/backups/`).
-  No auto-purge. Users manage retention manually. Phase 09 implemented this way.
+- **Product import columns** — exact columns and format for bulk import (awaiting
+  the shop's actual Excel file; default CSV template implemented in Phase 03).
+- **Exchange refund / price-difference behavior** — RESOLVED: store credit
+  (see v1.3.0 confirmed batch).
+- **Multi-item exchange rules** — RESOLVED: keep multi-item exchanges
+  (see v1.3.0 confirmed batch).
+- **Backup retention / destination** — RESOLVED: backups live in the configured
+  backup directory (`FUNMITE_BACKUP_DIR`, default `<project_root>/backups/`).
+  Auto-purge implemented in v1.3.0 (keep newest 30 / delete older than 90 days,
+  env-tunable).
 - **Selected cloud/hybrid package** — RESOLVED: Option A — Dual Independent
   SQLite + Cloud Sync. Each PC has its own local SQLite database; a sync
   outbox pattern pushes/pulls to cloud PostgreSQL. Phase 10 implemented this.
@@ -32,13 +71,14 @@ decision does not block the phase.
 
 - Exact receipt number prefix/format (see above).
 - Exact mechanism for settling exchange price differences under the no-cash
-  rule (see above).
+  rule (see above) — RESOLVED: store credit (v1.3.0).
 - Final product data volume and data-entry/import format.
 - Whether the virtual Lagos branch is only a future concept or must appear in
   V1 reports.
 - Exact cloud remote UI scope within the V1 agreement.
-- Exact backup frequency and retention count — RESOLVED: Manual trigger only,
-  no auto-purge, all backups kept. Phase 09 implemented this way.
+- Exact backup frequency and retention count — RESOLVED: manual trigger, with
+  auto-purge of old backups after each new backup (keep newest 30 / older than
+  90 days) implemented in v1.3.0.
 - Which payment reference number is recorded for POS/Transfer transactions, if
   any.
 - Whether product images are mandatory or optional.
@@ -81,8 +121,9 @@ decision does not block the phase.
 - **Backup encryption** — the security rule says "Protect local backups" but no
   encryption mechanism is specified. Phase 09 stores plain SQLite files. Confirm
   whether backups should be encrypted or password-protected before production.
-- **Backup file cleanup** — no auto-purge is implemented. Confirm whether a
-  maximum backup count or disk-space threshold should trigger automatic cleanup.
+- **Backup file cleanup** — RESOLVED: automatic retention implemented in v1.3.0
+  (keep newest `FUNMITE_BACKUP_KEEP` = 30, delete older than
+  `FUNMITE_BACKUP_MAX_AGE_DAYS` = 90 days; both rules apply; 0 disables a rule).
 - **Backup timestamp collision** — `test_multiple_backups_all_valid` is flaky
   because two backups created within the same second get identical filenames.
   The backup service uses microsecond precision; the collision window is ~1s.
@@ -117,17 +158,15 @@ decision does not block the phase.
 
 ## Added during Phase 06
 
-- **Customer-owed refund settlement** — when the replacement item costs less than
-  the returned item(s), the customer is owed money. Phase 06 refuses that branch
-  with `ValidationError` and records it here. The settlement method (cash refund,
-  credit toward a future sale, bank transfer back) must be confirmed. Until then,
-  exchanges where the customer is owed money are blocked.
+- **Customer-owed refund settlement** — RESOLVED: the customer-owed difference is
+  refunded as store credit on the `customer_credits` ledger and is spendable at
+  the till on the customer's next sale (v1.3.0).
 - **Exchange receipt printing** — whether a separate exchange receipt or an addendum
   to the original sale receipt should be printed. Phase 06 does not print anything;
   confirm before production.
-- **Admin 2-day override** — whether the Admin should be able to override the
-  2-day exchange window. Phase 06 enforces the window with no override. Confirm
-  whether the Admin may extend or bypass it.
+- **Admin 2-day override** — RESOLVED: the Admin may override the 2-day exchange
+  window behind a confirmation prompt, and every override is audit-logged
+  (`EXCHANGE_WINDOW_OVERRIDE`). Implemented in v1.3.0.
 
 ## Added during Phase 05
 
@@ -135,16 +174,15 @@ decision does not block the phase.
   number is recorded for POS/Transfer transactions. Phase 05 added an optional
   free-text "Reference" field stored on `payments.reference`. Confirm whether a
   reference should be mandatory for either method.
-- **Cashier reprint rights** — UC-06 "Reprint Receipt" has no dedicated
-  capability in the matrix, so Phase 05 gates reprint to Admin via the closest
-  capability, `CAP_VIEW_REPORTS`. Confirm whether the Cashier may reprint.
+- **Cashier reprint rights** — RESOLVED: the Cashier may reprint receipts via the
+  shared `CAP_REPRINT_RECEIPT` capability; Admin and Cashier can reprint, and a
+  cancelled sale cannot be reprinted. Implemented in v1.3.0.
 - **Cashier creates walk-in customers** -- RESOLVED: Cashier can create minimal walk-in customers at the till via `CustomerService.create_for_sale` (name required, phone optional) gated by `CAP_MAKE_SALE`. Full customer management stays Admin-only. Implemented in Phase 05.
   customers at the till.
 - **Low-stock note after a sale** -- RESOLVED: Scoped to the sale own items only. Implemented in Phase 05.
-- **ESC/POS naira rendering** — PC437 (thermal printers) has no naira glyph, so
-  the ESC/POS renderer prints `N` instead of `₦` on the paper receipt. Applies
-  only to the printed copy; on-screen text keeps `₦`. A hardware/print decision
-  (Phase 11) may override this.
+- **ESC/POS naira rendering** — RESOLVED: PC437 (thermal printers) has no naira
+  glyph, so the ESC/POS renderer and the paper receipt print `NGN` instead of
+  `₦`. On-screen text keeps `₦`. Implemented in v1.3.0.
 
 ## Added during Phase 04
 

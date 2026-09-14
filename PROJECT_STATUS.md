@@ -5,7 +5,7 @@ actual code and test output before trusting the claims below.
 
 ## Current phase
 
-**v1.3.0 UI/UX Polish COMPLETE - Ready for Physical Validation & UAT** (657 tests passing)
+**v1.3.0 Shop-Use Decisions COMPLETE - Ready for Physical Validation & UAT** (826 tests passing)
 
 ## Completed phases
 
@@ -24,6 +24,7 @@ actual code and test output before trusting the claims below.
 | 10 | Hybrid Offline-First Cloud Sync | COMPLETE |
 | 11 | Production Hardening & Deployment | COMPLETE |
 | -- | UI/UX Polish (v1.3.0) | COMPLETE |
+| -- | Shop-Use Decisions (v1.3.0) | COMPLETE |
 | 12 | Physical Hardware Validation & UAT | PENDING - waiting for hardware |
 
 ## Next action
@@ -495,6 +496,36 @@ titles, empty states, consistent tokens, visual cleanup.
 - Updated `test_app_shell.py` for new status bar format.
 - 657 tests passing (0 failures).
 - EXE rebuilt with all 11 SVG icons + logo bundled.
+
+
+## v1.3.0 Shop-Use Decisions summary
+
+Confirmed shop-use rules shipped in v1.3.0. 826 tests passing; no regressions.
+
+- Store credit for exchange refunds: new `customer_credits` ledger (source
+  `EXCHANGE`; `amount > 0` CHECK); balance derived as `SUM(EXCHANGE) -
+  SUM(SALE_PAYMENT)`. Customer-owed exchange differences are no longer blocked.
+- Store credit spendable at the till: `PAYMENT_CREDIT` + `StoreCreditService`
+  consumes the customer's ledger balance; insufficient balance returns a
+  descriptive error.
+- Admin 2-day exchange override: `CAP_EXCHANGE_OVERRIDE` (admin-only) lets the
+  Admin override the 2-day window, with confirmation and audit log.
+- Sale cancellation: Admin-only `cancel_sale(receipt_no, reason)` marks a sale
+  `CANCELLED`, restores stock, refunds any `PAYMENT_CREDIT` row, and logs the
+  action; cannot cancel a sale tied to a completed exchange; cancelled receipts
+  cannot be reprinted.
+- Reporting exclusions: every report, EOD, payment breakdown and export
+  excludes `CANCELLED` sales; cashier EOD scoped to own sales.
+- Cashier EOD in "My Sales" screen; reprint gated by shared
+  `CAP_REPRINT_RECEIPT`.
+- Paper receipts print `NGN` (PC437 has no naira glyph); on-screen keeps `₦`.
+- Backup auto-purge: after each backup, oldest files beyond the newest 30 are
+  removed when older than 90 days (both rules apply; `0` disables either);
+  env-tunable (`FUNMITE_BACKUP_KEEP`, `FUNMITE_BACKUP_MAX_AGE_DAYS`).
+- Version unified to 1.3.0 across `__version__`, `pyproject.toml`, docs, spec,
+  deployment and UAT checklists; standalone EXE rebuilt.
+- Migration 005 adds `customer_credits` table and rebuilds `sales`, `payments`
+  and `exchanges` (idempotent).
 
 
 ## Blockers

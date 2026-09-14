@@ -7,7 +7,7 @@ pre-restore safety backup, integrity checks, audit logging, and edge cases.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -558,3 +558,85 @@ class TestEdgeCases:
         rows = conn.execute("SELECT COUNT(*) FROM test").fetchone()[0]
         conn.close()
         assert rows == 1000
+
+
+# -- Auto-purge ------------------------------------------------------------- #
+
+
+def _fake_backup(tmp_path: Path, when: datetime, idx: str = "aabbccdd") -> Path:
+    name = f"{BACKUP_PREFIX}{when.strftime('%Y%m%d_%H%M%S')}_{idx}{BACKUP_SUFFIX}"
+    path = tmp_path / "backups" / name
+    path.write_bytes(b"x")
+    return path
+
+
+class TestPurge:
+    """Old backups are purged after create_backup (keep + max-age rules)."""
+
+    def test_purge_only_removes_old_beyond_keep(self, session, tmp_path):
+        db = tmp_path / "funmite.db"
+        _make_db(db)
+        user = _admin_user(session)
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        old = datetime.now() - timedelta(days=120)
+        _fake_backup(tmp_path, old, "11111111")
+        _fake_backup(tmp_path, old, "22222222")
+        _fake_backup(tmp_path, old, "33333333")
+
+        svc = BackupService(
+            session, db_path=db, backup_dir=backup_dir,
+            keep_count=2, max_age_days=90,
+        )
+        removed = svc.purge()
+
+        assert removed == 1
+        remaining = {p.name for p in backup_dir.iterdir() if p.suffix == ".db"}
+        assert len(remaining) == 2
+
+    def test_purge_keeps_recent_backups(self, session, tmp_path):
+        db = tmp_path / "funmite.db"
+        _make_db(db)
+        svc = BackupService(
+            session, db_path=db, backup_dir=tmp_path / "backups",
+            keep_count=1, max_age_days=7,
+        )
+        svc.create_backup(_admin_user(session))
+        svc.create_backup(_admin_user(session))
+        assert len(list((tmp_path / "backups").iterdir())) == 2
+
+    def test_disabled_rules_keep_everything(self, session, tmp_path):
+        db = tmp_path / "funmite.db"
+        _make_db(db)
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        old = datetime.now() - timedelta(days=400)
+        _fake_backup(tmp_path, old, "11111111")
+        _fake_backup(tmp_path, old, "22222222")
+
+        svc = BackupService(
+            session, db_path=db, backup_dir=backup_dir,
+            keep_count=0, max_age_days=0,
+        )
+        assert svc.purge() == 0
+        assert len(list(backup_dir.iterdir())) == 2
+
+    def test_create_backup_auto_purges_old_files(self, session, tmp_path):
+        db = tmp_path / "funmite.db"
+        _make_db(db)
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        old = datetime.now() - timedelta(days=200)
+        for i in range(40):
+            _fake_backup(tmp_path, old, f"{i:08x}")
+
+        svc = BackupService(
+            session, db_path=db, backup_dir=backup_dir,
+            keep_count=10, max_age_days=90,
+        )
+        result = svc.create_backup(_admin_user(session))
+        assert result.success is True
+
+        names = {p.name for p in backup_dir.iterdir() if p.suffix == ".db"}
+        assert len(names) == 10  # the keep_count newest (fresh backup + 9 old)
+        assert result.filename in names

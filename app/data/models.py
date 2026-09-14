@@ -40,7 +40,16 @@ VALID_ROLES = (ROLE_ADMIN, ROLE_CASHIER)
 
 PAYMENT_POS = "POS"
 PAYMENT_TRANSFER = "TRANSFER"
-VALID_PAYMENT_METHODS = (PAYMENT_POS, PAYMENT_TRANSFER)
+PAYMENT_CREDIT = "CREDIT"
+VALID_PAYMENT_METHODS = (PAYMENT_POS, PAYMENT_TRANSFER, PAYMENT_CREDIT)
+
+SALE_COMPLETED = "COMPLETED"
+SALE_CANCELLED = "CANCELLED"
+VALID_SALE_STATUSES = (SALE_COMPLETED, SALE_CANCELLED)
+
+CREDIT_SOURCE_EXCHANGE = "EXCHANGE"
+CREDIT_SOURCE_SALE_PAYMENT = "SALE_PAYMENT"
+VALID_CREDIT_SOURCES = (CREDIT_SOURCE_EXCHANGE, CREDIT_SOURCE_SALE_PAYMENT)
 
 DISCOUNT_PERCENT = "PERCENT"
 DISCOUNT_FIXED = "FIXED"
@@ -115,7 +124,12 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
-    sales: Mapped[list[Sale]] = relationship(back_populates="cashier")
+    sales: Mapped[list[Sale]] = relationship(
+        back_populates="cashier", foreign_keys="Sale.cashier_id"
+    )
+    cancelled_sales: Mapped[list[Sale]] = relationship(
+        back_populates="cancelled_by_user", foreign_keys="Sale.cancelled_by_user_id"
+    )
     inventory_logs: Mapped[list[InventoryLog]] = relationship(back_populates="user")
     payments: Mapped[list[Payment]] = relationship(back_populates="recorded_by_user")
     purchases: Mapped[list[Purchase]] = relationship(back_populates="created_by_user")
@@ -201,14 +215,54 @@ class Customer(Base):
 
     sales: Mapped[list[Sale]] = relationship(back_populates="customer")
     exchanges: Mapped[list[Exchange]] = relationship(back_populates="customer")
+    credits: Mapped[list[CustomerCredit]] = relationship(back_populates="customer")
+
+
+class CustomerCredit(Base):
+    """Store-credit ledger line for one customer.
+
+    The shop owes the customer when an exchange replacement is cheaper than the
+    returned items (the no-cash rule forbids a cash refund), and the customer
+    can spend the balance on a future sale. Balance is derived by summing the
+    ledger rows: ``amount`` is always positive, source ``EXCHANGE`` adds to the
+    balance and source ``SALE_PAYMENT`` (credit applied to a sale) subtracts it.
+    Using a ledger instead of an absolute balance column keeps the two-PC
+    convergence model idempotent, exactly like the inventory delta model.
+    """
+
+    __tablename__ = "customer_credits"
+    __table_args__ = (
+        CheckConstraint(
+            f"source IN ({_in_clause(VALID_CREDIT_SOURCES)})",
+            name="ck_customer_credits_source",
+        ),
+        CheckConstraint("amount > 0", name="ck_customer_credits_amount_positive"),
+        Index("idx_customer_credits_customer", "customer_id"),
+        Index("idx_customer_credits_source", "source"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    source: Mapped[str] = mapped_column(String(20))
+    exchange_id: Mapped[int | None] = mapped_column(ForeignKey("exchanges.id"))
+    sale_id: Mapped[int | None] = mapped_column(ForeignKey("sales.id"))
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    sync_uuid: Mapped[str] = mapped_column(String(36), unique=True, default=_uuid)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    customer: Mapped[Customer] = relationship(back_populates="credits")
+    exchange: Mapped[Exchange | None] = relationship()
+    sale: Mapped[Sale | None] = relationship()
 
 
 class Sale(Base):
-    """Sale header. payment_method is restricted to POS or TRANSFER."""
+    """Sale header. payment_method is restricted to POS, TRANSFER or CREDIT."""
 
     __tablename__ = "sales"
     __table_args__ = (
         CheckConstraint(f"payment_method IN ({_in_clause(VALID_PAYMENT_METHODS)})", name="ck_sales_payment_method"),
+        CheckConstraint(f"status IN ({_in_clause(VALID_SALE_STATUSES)})", name="ck_sales_status"),
         CheckConstraint("subtotal >= 0", name="ck_sales_subtotal"),
         CheckConstraint(
             "discount_type IS NULL OR discount_type IN "
@@ -235,12 +289,19 @@ class Sale(Base):
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     payment_method: Mapped[str] = mapped_column(String(20))
     amount_paid: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    status: Mapped[str] = mapped_column(String(20), default=SALE_COMPLETED)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime)
+    cancelled_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    cancel_reason: Mapped[str | None] = mapped_column(String(255))
     sync_uuid: Mapped[str] = mapped_column(String(36), unique=True, default=_uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
     customer: Mapped[Customer] = relationship(back_populates="sales")
-    cashier: Mapped[User] = relationship(back_populates="sales")
+    cashier: Mapped[User] = relationship(back_populates="sales", foreign_keys=[cashier_id])
+    cancelled_by_user: Mapped[User | None] = relationship(
+        foreign_keys=[cancelled_by_user_id], back_populates="cancelled_sales"
+    )
     items: Mapped[list[SaleItem]] = relationship(back_populates="sale")
     payments: Mapped[list[Payment]] = relationship(back_populates="sale")
     exchanges: Mapped[list[Exchange]] = relationship(back_populates="original_sale")
@@ -272,7 +333,7 @@ class SaleItem(Base):
 
 
 class Payment(Base):
-    """Payment received for a sale. Cash and credit are not representable."""
+    """Payment received for a sale. Cash is not representable; store credit is."""
 
     __tablename__ = "payments"
     __table_args__ = (
@@ -433,6 +494,7 @@ class Exchange(Base):
     difference_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     difference_type: Mapped[str] = mapped_column(String(20))
     payment_method: Mapped[str | None] = mapped_column(String(20))
+    override_reason: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(20), default=EXCHANGE_COMPLETED)
     sync_uuid: Mapped[str] = mapped_column(String(36), unique=True, default=_uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

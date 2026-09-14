@@ -16,6 +16,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.data.models import (
+    SALE_CANCELLED,
     Customer,
     Expense,
     LOW_STOCK_THRESHOLD,
@@ -238,13 +239,17 @@ class ReportingRepository(BaseRepository[Any]):
         start = datetime.combine(target_date, datetime.min.time())
         end = datetime.combine(target_date, datetime.max.time())
 
-        # Today's sales totals
+        # Today's sales totals (cancelled sales never count toward KPIs)
         sales_result = self.session.execute(
             select(
                 func.coalesce(func.sum(Sale.total), 0),
                 func.coalesce(func.sum(Sale.discount_amount), 0),
                 func.count(Sale.id),
-            ).where(Sale.sale_date >= start, Sale.sale_date <= end)
+            ).where(
+                Sale.sale_date >= start,
+                Sale.sale_date <= end,
+                Sale.status != SALE_CANCELLED,
+            )
         ).one()
         total_sales = Decimal(str(sales_result[0]))
         transaction_count = int(sales_result[2])
@@ -257,7 +262,11 @@ class ReportingRepository(BaseRepository[Any]):
                 )
             )
             .join(Sale, SaleItem.sale_id == Sale.id)
-            .where(Sale.sale_date >= start, Sale.sale_date <= end)
+            .where(
+                Sale.sale_date >= start,
+                Sale.sale_date <= end,
+                Sale.status != SALE_CANCELLED,
+            )
         ).scalar()
         cogs = Decimal(str(cogs_result))
 
@@ -269,13 +278,18 @@ class ReportingRepository(BaseRepository[Any]):
         ).scalar()
         total_expenses = Decimal(str(expenses_result))
 
-        # Today's POS/Transfer totals
+        # Today's POS/Transfer totals (cancelled sales' payments are excluded)
         payment_result = self.session.execute(
             select(
                 Payment.payment_method,
                 func.coalesce(func.sum(Payment.amount), 0),
             )
-            .where(Payment.payment_date >= start, Payment.payment_date <= end)
+            .join(Sale, Payment.sale_id == Sale.id)
+            .where(
+                Payment.payment_date >= start,
+                Payment.payment_date <= end,
+                Sale.status != SALE_CANCELLED,
+            )
             .group_by(Payment.payment_method)
         ).all()
         pos_total = Decimal("0")
@@ -312,7 +326,11 @@ class ReportingRepository(BaseRepository[Any]):
                 joinedload(Sale.customer),
                 joinedload(Sale.cashier),
             )
-            .where(Sale.sale_date >= start, Sale.sale_date <= end)
+            .where(
+                Sale.sale_date >= start,
+                Sale.sale_date <= end,
+                Sale.status != SALE_CANCELLED,
+            )
         )
         if cashier_id is not None:
             stmt = stmt.where(Sale.cashier_id == cashier_id)
@@ -348,10 +366,12 @@ class ReportingRepository(BaseRepository[Any]):
 
     def profit_report(self, start: datetime, end: datetime) -> ProfitReportSummary:
         """Period profit breakdown: sales, COGS, gross profit, expenses, net profit."""
-        # Total sales
+        # Total sales (cancelled sales excluded)
         sales_total = self.session.execute(
             select(func.coalesce(func.sum(Sale.total), 0)).where(
-                Sale.sale_date >= start, Sale.sale_date <= end
+                Sale.sale_date >= start,
+                Sale.sale_date <= end,
+                Sale.status != SALE_CANCELLED,
             )
         ).scalar()
 
@@ -363,7 +383,11 @@ class ReportingRepository(BaseRepository[Any]):
                 )
             )
             .join(Sale, SaleItem.sale_id == Sale.id)
-            .where(Sale.sale_date >= start, Sale.sale_date <= end)
+            .where(
+                Sale.sale_date >= start,
+                Sale.sale_date <= end,
+                Sale.status != SALE_CANCELLED,
+            )
         ).scalar()
 
         # Expenses
@@ -449,18 +473,32 @@ class ReportingRepository(BaseRepository[Any]):
     # -- Payment Report ---------------------------------------------------- #
 
     def payment_report(
-        self, start: datetime, end: datetime
+        self,
+        start: datetime,
+        end: datetime,
+        cashier_id: int | None = None,
     ) -> PaymentReportSummary:
-        """Payments in a date range with POS/Transfer totals."""
+        """Payments in a date range with POS/Transfer totals.
+
+        Cancelled sales' payments are excluded. ``cashier_id`` scopes the view
+        to one cashier's own sales (cashier EOD).
+        """
         stmt = (
             select(Payment)
             .options(
                 joinedload(Payment.recorded_by_user),
                 joinedload(Payment.sale),
             )
-            .where(Payment.payment_date >= start, Payment.payment_date <= end)
-            .order_by(Payment.payment_date)
+            .join(Sale, Payment.sale_id == Sale.id)
+            .where(
+                Payment.payment_date >= start,
+                Payment.payment_date <= end,
+                Sale.status != SALE_CANCELLED,
+            )
         )
+        if cashier_id is not None:
+            stmt = stmt.where(Sale.cashier_id == cashier_id)
+        stmt = stmt.order_by(Payment.payment_date)
         payments = list(self.session.scalars(stmt).unique())
 
         rows = tuple(
@@ -597,7 +635,11 @@ class ReportingRepository(BaseRepository[Any]):
             )
             .join(SaleItem, SaleItem.product_id == Product.id)
             .join(Sale, SaleItem.sale_id == Sale.id)
-            .where(Sale.sale_date >= start, Sale.sale_date <= end)
+            .where(
+                Sale.sale_date >= start,
+                Sale.sale_date <= end,
+                Sale.status != SALE_CANCELLED,
+            )
             .group_by(Product.id, Product.name)
             .order_by(Product.name)
         )
@@ -627,7 +669,11 @@ class ReportingRepository(BaseRepository[Any]):
                 func.count(Sale.id).label("txn_count"),
             )
             .join(Sale, Sale.cashier_id == User.id)
-            .where(Sale.sale_date >= start, Sale.sale_date <= end)
+            .where(
+                Sale.sale_date >= start,
+                Sale.sale_date <= end,
+                Sale.status != SALE_CANCELLED,
+            )
             .group_by(User.id, User.full_name)
             .order_by(User.full_name)
         )
@@ -644,29 +690,56 @@ class ReportingRepository(BaseRepository[Any]):
 
     # -- End of Day Report ------------------------------------------------- #
 
-    def end_of_day_report(self, target_date: date) -> EndOfDayReport:
-        """Complete daily summary combining sales, expenses, payments."""
+    def end_of_day_report(
+        self, target_date: date, cashier_id: int | None = None
+    ) -> EndOfDayReport:
+        """Complete daily summary combining sales, expenses, payments.
+
+        Cancelled sales are excluded everywhere. ``cashier_id`` scopes sales,
+        COGS and payments to one cashier's own sales (cashier EOD); expenses
+        are always shop-wide.
+        """
         start = datetime.combine(target_date, datetime.min.time())
         end = datetime.combine(target_date, datetime.max.time())
 
         # Sales
-        sales_summary = self.sales_report(start, end)
+        sales_summary = self.sales_report(start, end, cashier_id)
 
-        # Profit
-        profit_summary = self.profit_report(start, end)
+        # COGS for the same (scoped) sales
+        cogs_stmt = (
+            select(
+                func.coalesce(
+                    func.sum(SaleItem.quantity * SaleItem.cost_price), 0
+                )
+            )
+            .join(Sale, SaleItem.sale_id == Sale.id)
+            .where(
+                Sale.sale_date >= start,
+                Sale.sale_date <= end,
+                Sale.status != SALE_CANCELLED,
+            )
+        )
+        if cashier_id is not None:
+            cogs_stmt = cogs_stmt.where(Sale.cashier_id == cashier_id)
+        cogs_result = self.session.execute(cogs_stmt).scalar()
+        cogs = Decimal(str(cogs_result))
 
         # Payments
-        payment_summary = self.payment_report(start, end)
+        payment_summary = self.payment_report(start, end, cashier_id)
 
-        # Expenses
+        # Expenses (shop-wide, never per-cashier)
         expense_summary = self.expense_report(start, end)
 
+        total_sales = sales_summary.total_sales
+        gross_profit = total_sales - cogs
+        net_profit = gross_profit - expense_summary.total_expenses
+
         return EndOfDayReport(
-            total_sales=profit_summary.total_sales,
-            cogs=profit_summary.cogs,
-            gross_profit=profit_summary.gross_profit,
+            total_sales=total_sales,
+            cogs=cogs,
+            gross_profit=gross_profit,
             total_expenses=expense_summary.total_expenses,
-            net_profit=profit_summary.net_profit,
+            net_profit=net_profit,
             transaction_count=sales_summary.transaction_count,
             pos_total=payment_summary.pos_total,
             transfer_total=payment_summary.transfer_total,

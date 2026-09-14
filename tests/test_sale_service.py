@@ -1,10 +1,11 @@
 """Sale service tests (Phase 05).
 
 Covers the complete atomic sale: customer requirement, cart validation,
-pricing, approved discount behavior, POS/Transfer-only payments (cash/credit
-rejected), sale items, payment records, stock deduction through the shared
-inventory writer, inventory movement logging, receipt numbering, duplicate
-handling, insufficient-stock rollback, authorization and offline operation.
+pricing, approved discount behavior, POS/Transfer/credit payments (cash and
+online gateways rejected), store-credit spending, sale items, payment records,
+stock deduction through the shared inventory writer, inventory movement
+logging, receipt numbering, duplicate handling, insufficient-stock rollback,
+sale cancellation (reverse + void), authorization and offline operation.
 """
 
 from __future__ import annotations
@@ -19,21 +20,38 @@ from sqlalchemy.exc import IntegrityError
 
 from app.data.db import session_scope
 from app.data.models import (
+    CREDIT_SOURCE_EXCHANGE,
+    CREDIT_SOURCE_SALE_PAYMENT,
+    DIFFERENCE_NONE,
     DISCOUNT_FIXED,
     DISCOUNT_PERCENT,
+    EXCHANGE_COMPLETED,
+    PAYMENT_CREDIT,
     PAYMENT_POS,
     PAYMENT_TRANSFER,
+    CustomerCredit,
+    Exchange,
     InventoryLog,
     Payment,
     ROLE_ADMIN,
     ROLE_CASHIER,
+    SALE_CANCELLED,
     Sale,
     SaleItem,
 )
 from app.domain.errors import AuthorizationError, NotFoundError, ValidationError
 from app.domain.services.device_service import DeviceIdentity
-from app.domain.services.inventory_service import REFERENCE_SALE
-from app.domain.services.sale_service import RECEIPT_PREFIX, SALE_ITEM_REASON, SaleService
+from app.domain.services.inventory_service import (
+    REFERENCE_SALE,
+    REFERENCE_SALE_CANCELLED,
+)
+from app.domain.services.sale_service import (
+    RECEIPT_PREFIX,
+    SALE_CANCEL_REASON,
+    SALE_ITEM_REASON,
+    SaleService,
+)
+from app.domain.services.store_credit_service import StoreCreditService
 from app.domain.session import CurrentUser
 from tests.factories import make_category, make_customer, make_product, make_user
 
@@ -59,6 +77,18 @@ def _product(session, *, name="Ladies Gown", quantity=10, selling_price="35000",
 
 def _customer(session, name="Amina Yusuf"):
     return make_customer(session, name=name)
+
+
+def _grant_credit(session, by_user, customer, amount="5000"):
+    credit = CustomerCredit(
+        customer_id=customer.id,
+        amount=Decimal(amount),
+        source=CREDIT_SOURCE_EXCHANGE,
+        created_by=by_user.id,
+    )
+    session.add(credit)
+    session.flush()
+    return credit
 
 
 def _items(*entries):
@@ -392,8 +422,8 @@ def test_bank_transfer_payment_recorded_with_reference(session_factory, session)
     assert payments[0].reference == "TRF-12345"
 
 
-@pytest.mark.parametrize("method", ["CASH", "CREDIT", "cheque", "POS CASH", "", None, "  cash  "])
-def test_cash_credit_and_unsupported_payments_rejected(session_factory, session, method):
+@pytest.mark.parametrize("method", ["CASH", "cheque", "POS CASH", "", None, "  cash  "])
+def test_cash_and_unsupported_payments_rejected(session_factory, session, method):
     admin = _admin(session)
     customer = _customer(session)
     product = _product(session)
@@ -404,6 +434,196 @@ def test_cash_credit_and_unsupported_payments_rejected(session_factory, session,
             SaleService(session).complete_sale(
                 admin, customer_id=customer.id, items=_items((product.id, 1)), payment_method=method
             )
+
+
+# --- store credit ------------------------------------------------------------ #
+
+
+def test_sale_paid_with_store_credit_consumes_ledger(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session, selling_price="2500")
+    _grant_credit(session, admin, customer, "5000")
+    session.commit()
+
+    sale = _complete(
+        session_factory, admin, customer, _items((product.id, 2)), payment_method=PAYMENT_CREDIT
+    )
+
+    assert sale.payment_method == PAYMENT_CREDIT
+    payments = _payments(session_factory, sale.id)
+    assert len(payments) == 1
+    assert payments[0].payment_method == PAYMENT_CREDIT
+    assert payments[0].amount == Decimal("5000")
+    with session_factory() as check:
+        assert StoreCreditService(check).balance(customer.id) == Decimal("0")
+        consumption = check.scalar(
+            select(CustomerCredit).where(
+                CustomerCredit.customer_id == customer.id,
+                CustomerCredit.source == CREDIT_SOURCE_SALE_PAYMENT,
+            )
+        )
+        assert consumption is not None
+        assert consumption.amount == Decimal("5000")
+        assert consumption.sale_id == sale.id
+
+
+def test_sale_credit_requires_sufficient_balance(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session, selling_price="2500")
+    _grant_credit(session, admin, customer, "2000")
+    session.commit()
+
+    with pytest.raises(ValidationError, match="Insufficient store credit"):
+        _complete(
+            session_factory,
+            admin,
+            customer,
+            _items((product.id, 2)),
+            payment_method=PAYMENT_CREDIT,
+        )
+
+    with session_factory() as check:
+        assert _count(check, Sale) == 0
+        assert _count(check, SaleItem) == 0
+        assert _count(check, Payment) == 0
+        assert _count(check, InventoryLog) == 0
+
+
+# --- cancellation ------------------------------------------------------------ #
+
+
+def _cancel(session_factory, user, receipt_no, reason="Reverted by customer", **kwargs):
+    with session_scope(session_factory) as session:
+        return SaleService(session).cancel_sale(
+            user, receipt_no=receipt_no, reason=reason, **kwargs
+        )
+
+
+def test_cancel_sale_voids_header_and_restores_stock(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session, quantity=5)
+    session.commit()
+    sale = _complete(session_factory, admin, customer, _items((product.id, 2)), payment_method=PAYMENT_POS)
+
+    _cancel(session_factory, admin, sale.receipt_no)
+
+    with session_factory() as check:
+        header = check.get(Sale, sale.id)
+        assert header.status == SALE_CANCELLED
+        assert header.cancel_reason == "Reverted by customer"
+        assert header.cancelled_by_user_id == admin.id
+        assert header.cancelled_at is not None
+        assert check.get(type(product), product.id).quantity == 5
+        logs = check.scalars(
+            select(InventoryLog)
+            .where(InventoryLog.reference_id == sale.id)
+            .order_by(InventoryLog.id)
+        ).all()
+        assert len(logs) == 2
+        reversal = logs[-1]
+        assert reversal.change_quantity == 2
+        assert reversal.reference_type == REFERENCE_SALE_CANCELLED
+        assert reversal.reason == SALE_CANCEL_REASON
+        assert reversal.new_quantity == 5
+
+
+def test_cancel_sale_requires_reason(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session)
+    session.commit()
+    sale = _complete(session_factory, admin, customer, _items((product.id, 1)), payment_method=PAYMENT_POS)
+
+    with pytest.raises(ValidationError, match="reason is required"):
+        _cancel(session_factory, admin, sale.receipt_no, reason="   ")
+
+
+def test_cancel_unknown_receipt_raises_not_found(session_factory, session):
+    admin = _admin(session)
+    session.commit()
+    with pytest.raises(NotFoundError, match="No sale found"):
+        _cancel(session_factory, admin, "FUN-99999999-999")
+
+
+def test_cannot_cancel_twice(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session)
+    session.commit()
+    sale = _complete(session_factory, admin, customer, _items((product.id, 1)), payment_method=PAYMENT_POS)
+    _cancel(session_factory, admin, sale.receipt_no)
+
+    with pytest.raises(ValidationError, match="already cancelled"):
+        _cancel(session_factory, admin, sale.receipt_no)
+
+    with session_factory() as check:
+        assert _count(check, InventoryLog) == 2
+
+
+def test_cancel_requires_admin_permission(session_factory, session):
+    admin = _admin(session)
+    cashier = _cashier(session)
+    customer = _customer(session)
+    product = _product(session)
+    session.commit()
+    sale = _complete(session_factory, admin, customer, _items((product.id, 1)), payment_method=PAYMENT_POS)
+
+    with pytest.raises(AuthorizationError):
+        _cancel(session_factory, cashier, sale.receipt_no)
+
+
+def test_cancel_blocked_when_sale_has_completed_exchange(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session)
+    session.commit()
+    sale = _complete(session_factory, admin, customer, _items((product.id, 1)), payment_method=PAYMENT_POS)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Exchange(
+                original_sale_id=sale.id,
+                customer_id=customer.id,
+                approved_by=admin.id,
+                exchange_date=datetime.now(),
+                difference_amount=Decimal("0"),
+                difference_type=DIFFERENCE_NONE,
+                status=EXCHANGE_COMPLETED,
+            )
+        )
+
+    with pytest.raises(ValidationError, match="completed exchange"):
+        _cancel(session_factory, admin, sale.receipt_no)
+
+
+def test_cancel_of_credit_sale_refunds_store_credit(session_factory, session):
+    admin = _admin(session)
+    customer = _customer(session)
+    product = _product(session, selling_price="2500")
+    _grant_credit(session, admin, customer, "10000")
+    session.commit()
+
+    sale = _complete(
+        session_factory, admin, customer, _items((product.id, 2)), payment_method=PAYMENT_CREDIT
+    )
+    with session_factory() as check:
+        assert StoreCreditService(check).balance(customer.id) == Decimal("5000")
+
+    _cancel(session_factory, admin, sale.receipt_no, reason="Wrong item")
+
+    with session_factory() as check:
+        assert StoreCreditService(check).balance(customer.id) == Decimal("10000")
+        grants = check.scalars(
+            select(CustomerCredit).where(
+                CustomerCredit.customer_id == customer.id,
+                CustomerCredit.source == CREDIT_SOURCE_EXCHANGE,
+            )
+        ).all()
+        assert len(grants) == 2
+        assert {str(g.amount) for g in grants} == {"10000.00", "5000.00"}
 
 
 # --- stock deduction + inventory movement ---------------------------------- #

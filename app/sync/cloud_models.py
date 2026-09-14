@@ -126,6 +126,10 @@ class CloudSale(CloudBase):
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     payment_method: Mapped[str] = mapped_column(String(20))
     amount_paid: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    status: Mapped[str] = mapped_column(String(20), default="COMPLETED")
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime)
+    cancelled_by_name: Mapped[str | None] = mapped_column(String(150))
+    cancel_reason: Mapped[str | None] = mapped_column(String(255))
     device_id: Mapped[str] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
@@ -225,7 +229,24 @@ class CloudExchange(CloudBase):
     difference_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     difference_type: Mapped[str] = mapped_column(String(20))
     payment_method: Mapped[str | None] = mapped_column(String(20))
+    override_reason: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(20), default="COMPLETED")
+    device_id: Mapped[str] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class CloudCustomerCredit(CloudBase):
+    """Cloud mirror of the local ``customer_credits`` store-credit ledger."""
+
+    __tablename__ = "customer_credits"
+
+    sync_uuid: Mapped[str] = mapped_column(String(36), primary_key=True)
+    customer_sync_uuid: Mapped[str] = mapped_column(String(36))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    source: Mapped[str] = mapped_column(String(20))
+    exchange_sync_uuid: Mapped[str | None] = mapped_column(String(36))
+    sale_sync_uuid: Mapped[str | None] = mapped_column(String(36))
+    created_by_name: Mapped[str] = mapped_column(String(150))
     device_id: Mapped[str] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 

@@ -27,6 +27,7 @@ from app.sync.cloud_db import (
 from app.sync.cloud_models import (
     CloudCategory,
     CloudCustomer,
+    CloudCustomerCredit,
     CloudExchange,
     CloudExchangeItem,
     CloudExpense,
@@ -76,6 +77,7 @@ CLOUD_MODEL_MAP: dict[str, type] = {
     "expense": CloudExpense,
     "exchange": CloudExchange,
     "exchange_item": CloudExchangeItem,
+    "customer_credit": CloudCustomerCredit,
 }
 
 # Mutable reference entities that use version-based conflict detection.
@@ -85,7 +87,7 @@ REFERENCE_TYPES = frozenset({"category", "product", "customer", "supplier"})
 APPEND_ONLY_TYPES = frozenset({
     "sale", "sale_item", "payment", "inventory_log",
     "purchase", "purchase_item", "expense",
-    "exchange", "exchange_item",
+    "exchange", "exchange_item", "customer_credit",
 })
 
 # Columns to exclude from sync payloads (never sync these)
@@ -248,6 +250,14 @@ def _apply_mutation(
     if mut.entity_type in APPEND_ONLY_TYPES:
         existing = db.get(model_cls, mut.sync_uuid)
         if existing is not None:
+            # Sales are append-only EXCEPT that a CANCELLED sale updates the
+            # existing row so the cancellation propagates to every device.
+            if (
+                mut.entity_type == "sale"
+                and mut.payload.get("status") == "CANCELLED"
+                and getattr(existing, "status", "COMPLETED") != "CANCELLED"
+            ):
+                _apply_sale_cancel(db, existing, mut)
             # Idempotent: already exists, skip silently
             _log_sync_event(db, mut, device_id, True)
             return "accepted"
@@ -297,6 +307,18 @@ def _apply_mutation(
         return conflict
 
 
+def _apply_sale_cancel(
+    db: Session, existing: CloudSale, mut: Mutation
+) -> None:
+    """Update an existing cloud sale row with its cancellation details."""
+    payload = _coerce_datetime_fields(CloudSale, dict(mut.payload))
+    for key in ("status", "cancelled_at", "cancel_reason", "cancelled_by_name"):
+        value = payload.get(key)
+        if value is not None and hasattr(existing, key):
+            setattr(existing, key, value)
+    db.flush()
+
+
 def _upsert_cloud_entity(
     db: Session,
     model_cls: type,
@@ -313,6 +335,12 @@ def _upsert_cloud_entity(
 
     # Coerce string datetimes to actual datetime objects for SQLite
     payload = _coerce_datetime_fields(model_cls, payload)
+
+    # Keep only columns that exist on this cloud model so local-only fields
+    # (e.g. cashier_id, customer_id) never leak into the constructor.
+    from sqlalchemy import inspect as sa_inspect
+    valid_columns = {c.key for c in sa_inspect(model_cls).column_attrs}
+    payload = {k: v for k, v in payload.items() if k in valid_columns}
 
     existing = db.get(model_cls, mut.sync_uuid)
     if existing is not None:

@@ -5,7 +5,7 @@ A complete sale is a single atomic transaction:
     validate permissions and inputs
     -> create the sale header (receipt number, totals, payment method)
     -> create the sale item lines (with historical cost for later profit)
-    -> record the payment (POS or Transfer only)
+    -> record the payment (POS, Transfer or store credit)
     -> deduct stock through ``InventoryService.change_stock`` (the one stock
        writer, shared with Phase 04 and reused by Phase 06 exchanges)
 
@@ -16,13 +16,16 @@ place where "no negative stock" is decided.
 
 Confirmed business rules enforced here (source-of-truth artifacts):
 
-- Only Bank POS and Bank Transfer payments exist. Cash, credit, split payments
-  and online gateways are not representable.
+- Bank POS, Bank Transfer and store credit are accepted. Cash, online gateways
+  and split payments are not representable.
 - A customer record is required for every sale.
 - Admin is the only role that may apply a discount (``CAP_DISCOUNT``).
 - Discount types are PERCENT or FIXED; a discount can never make the sale
   total negative (the confirmed "discount cannot make a sale total negative"
   rule). No ceiling/limit is invented.
+- Store credit can pay for a sale in full: the customer's credit ledger
+  (``customer_credits``) is consumed with source ``SALE_PAYMENT`` and the
+  sale is recorded with ``payment_method = CREDIT``.
 - Receipt numbers follow ``{DEVICE}-YYYYMMDD-NNN`` (daily sequence per device),
   where ``DEVICE`` is a short code derived from the installation's persistent
   device id (``data/device.id``). This makes receipt numbers unique across
@@ -39,27 +42,40 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy.orm import Session
 
 from app.data.models import (
+    CREDIT_SOURCE_EXCHANGE,
     DISCOUNT_FIXED,
     DISCOUNT_PERCENT,
+    EXCHANGE_COMPLETED,
+    PAYMENT_CREDIT,
+    SALE_CANCELLED,
     VALID_PAYMENT_METHODS,
+    CustomerCredit,
     Payment,
     Product,
     Sale,
     SaleItem,
 )
 from app.data.repositories.customer_repository import CustomerRepository
+from app.data.repositories.exchange_repository import ExchangeRepository
 from app.data.repositories.product_repository import ProductRepository
 from app.data.repositories.sale_repository import SaleRepository
 from app.domain.errors import NotFoundError, ValidationError
 from app.domain.permissions import (
+    CAP_CANCEL_SALE,
     CAP_DISCOUNT,
     CAP_MAKE_SALE,
     CAP_PROCESS_PAYMENT,
     require_permission,
 )
 from app.domain.rules.validation import parse_decimal, parse_quantity
+from app.domain.services.audit_service import ACTION_SALE_CANCELLED, AuditService
 from app.domain.services.device_service import DeviceIdentity
-from app.domain.services.inventory_service import REFERENCE_SALE, InventoryService
+from app.domain.services.inventory_service import (
+    REFERENCE_SALE,
+    REFERENCE_SALE_CANCELLED,
+    InventoryService,
+)
+from app.domain.services.store_credit_service import StoreCreditService
 from app.domain.services.sync_service import SyncService
 from app.domain.session import user_record_id
 
@@ -67,6 +83,7 @@ RECEIPT_PREFIX = "FUN"
 RECEIPT_SEQUENCE_DIGITS = 3
 RECEIPT_DEVICE_CODE_LENGTH = 6
 SALE_ITEM_REASON = "Sale"
+SALE_CANCEL_REASON = "Sale cancellation (reversal)"
 
 CENT = Decimal("0.01")
 
@@ -84,6 +101,7 @@ class SaleService:
         self.sales = SaleRepository(session)
         self.products = ProductRepository(session)
         self.customers = CustomerRepository(session)
+        self.exchanges = ExchangeRepository(session)
         self.inventory = InventoryService(session)
         self._device = device
 
@@ -197,6 +215,13 @@ class SaleService:
                 recorded_by=user_record_id(user),
             )
             self.session.add(payment_obj)
+            if payment_method == PAYMENT_CREDIT:
+                StoreCreditService(self.session).consume(
+                    user,
+                    customer_id=customer.id,
+                    amount=total,
+                    sale_id=sale.id,
+                )
 
         self.session.flush()
 
@@ -255,6 +280,110 @@ class SaleService:
 
         return sale
 
+    # --- sale cancellation ------------------------------------------------ #
+
+    def cancel_sale(
+        self,
+        user,
+        *,
+        receipt_no: str,
+        reason: str,
+        cancel_date: datetime | None = None,
+    ) -> Sale:
+        """Admin reverses + voids a completed sale (``CAP_CANCEL_SALE``).
+
+        The sale is never deleted: its ``status`` becomes ``CANCELLED`` with
+        ``cancelled_at``, ``cancelled_by_user_id`` and ``cancel_reason``, while
+        the original header, item lines and payments stay in the history for
+        audit. The sold stock is restored through the shared inventory writer
+        (recorded as ``SALE_CANCELLED`` reversal movements), and any store
+        credit the sale consumed is re-granted on the customer's ledger.
+
+        A sale that already has a completed exchange cannot be cancelled: the
+        exchange references the original sale, so the two-day window trade is
+        what the customer walked away with.
+        """
+        require_permission(user, CAP_CANCEL_SALE)
+
+        reason = (reason or "").strip()
+        if not reason:
+            raise ValidationError("A reason is required to cancel a sale.")
+
+        sale = self.sales.get_by_receipt_no((receipt_no or "").strip())
+        if sale is None:
+            raise NotFoundError(f"No sale found for receipt '{receipt_no}'.")
+        if sale.status == SALE_CANCELLED:
+            raise ValidationError(f"Sale '{sale.receipt_no}' is already cancelled.")
+
+        if any(
+            ex.status == EXCHANGE_COMPLETED for ex in self.exchanges.list_for_sale(sale.id)
+        ):
+            raise ValidationError(
+                f"Sale '{sale.receipt_no}' has a completed exchange and cannot be "
+                "cancelled; the exchange keeps the original sale intact."
+            )
+
+        cancelled_at = cancel_date or datetime.now()
+        sale.status = SALE_CANCELLED
+        sale.cancelled_at = cancelled_at
+        sale.cancelled_by_user_id = user_record_id(user)
+        sale.cancel_reason = reason
+        self.session.flush()
+
+        sync = self._sync()
+        sync.enqueue_update("sale", sale.id, {
+            "sync_uuid": sale.sync_uuid,
+            "status": sale.status,
+            "cancelled_at": str(sale.cancelled_at),
+            "cancelled_by_user_id": sale.cancelled_by_user_id,
+            "cancel_reason": sale.cancel_reason,
+        })
+
+        for item in sale.items:
+            self.inventory.change_stock(
+                user,
+                item.product_id,
+                item.quantity,
+                SALE_CANCEL_REASON,
+                reference_type=REFERENCE_SALE_CANCELLED,
+                reference_id=sale.id,
+                capability=CAP_CANCEL_SALE,
+            )
+
+        for payment in sale.payments:
+            if payment.payment_method != PAYMENT_CREDIT:
+                continue
+            credit = CustomerCredit(
+                customer_id=sale.customer_id,
+                amount=payment.amount,
+                source=CREDIT_SOURCE_EXCHANGE,
+                sale_id=sale.id,
+                created_by=user_record_id(user),
+            )
+            self.session.add(credit)
+            self.session.flush()
+            sync.enqueue_create("customer_credit", credit.id, {
+                "sync_uuid": credit.sync_uuid,
+                "customer_id": credit.customer_id,
+                "amount": str(credit.amount),
+                "source": credit.source,
+                "sale_id": credit.sale_id,
+                "created_by": credit.created_by,
+            })
+
+        AuditService(self.session).record(
+            user_id=user_record_id(user),
+            username=getattr(user, "username", None),
+            action=ACTION_SALE_CANCELLED,
+            details={
+                "receipt_no": sale.receipt_no,
+                "sale_id": sale.id,
+                "reason": reason,
+                "total": str(sale.total),
+            },
+        )
+        return sale
+
     # --- helpers ---------------------------------------------------------- #
 
     def _validate_lines(self, items: list[dict]) -> list[tuple[Product, int]]:
@@ -284,7 +413,7 @@ class SaleService:
         if value not in VALID_PAYMENT_METHODS:
             raise ValidationError(
                 f"Payment method '{payment_method}' is not supported. "
-                "Only Bank POS and Bank Transfer are accepted."
+                "Only Bank POS, Bank Transfer and store credit are accepted."
             )
         return value
 

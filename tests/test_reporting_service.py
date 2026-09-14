@@ -18,12 +18,15 @@ from app.data.models import (
     PAYMENT_TRANSFER,
     ROLE_ADMIN,
     ROLE_CASHIER,
+    SALE_CANCELLED,
     Expense,
     Purchase,
     PurchaseItem,
+    Sale,
 )
 from app.domain.errors import AuthorizationError
 from app.domain.services.reporting_service import ReportingService
+from app.domain.services.sale_service import SaleService
 from app.domain.session import CurrentUser
 from tests.factories import (
     make_category,
@@ -609,6 +612,104 @@ class TestEndOfDayReport:
             result = svc.end_of_day_report(admin, date.today())
             assert result.total_sales == Decimal("4000")
             assert result.transaction_count == 1
+
+    def test_cashier_end_of_day_scoped_to_own_sales(self, session_factory):
+        with session_scope(session_factory) as session:
+            admin = _admin(session)
+            cashier = _cashier(session)
+            cust = _customer(session)
+            prod = _product(session, cost="1000", selling="2000", qty=20)
+
+        with session_scope(session_factory) as session:
+            make_sale(session, cust, admin, items=[(prod, 2)])
+            make_sale(session, cust, cashier, items=[(prod, 1)])
+
+        with session_scope(session_factory) as session:
+            svc = ReportingService(session)
+            result = svc.end_of_day_report(cashier, date.today())
+            assert result.transaction_count == 1
+            assert result.total_sales == Decimal("2000")
+            assert result.pos_total == Decimal("2000")
+            assert len(result.sales_rows) == 1
+            assert result.sales_rows[0].cashier_name == "Cashier User"
+
+        with session_scope(session_factory) as session:
+            svc = ReportingService(session)
+            result = svc.end_of_day_report(admin, date.today())
+            assert result.transaction_count == 2
+            assert result.total_sales == Decimal("6000")
+
+    def test_cashier_end_of_day_still_needs_capability(self, session_factory):
+        fake_user = CurrentUser(
+            user_id=999, username="ghost", full_name="Ghost", role="UNKNOWN"
+        )
+        with session_scope(session_factory) as session:
+            svc = ReportingService(session)
+            with pytest.raises(AuthorizationError):
+                svc.end_of_day_report(fake_user, date.today())
+
+
+# -- Cancelled sales -------------------------------------------------------- #
+
+class TestCancelledSales:
+    def test_cancelled_sale_excluded_from_all_reports(self, session_factory):
+        with session_scope(session_factory) as session:
+            admin = _admin(session)
+            cust = _customer(session)
+            prod = _product(session, cost="1000", selling="2000", qty=10)
+            sale = make_sale(session, cust, admin, items=[(prod, 2)])
+            receipt_no = sale.receipt_no
+            sale_id = sale.id
+            product_id = prod.id
+
+        with session_scope(session_factory) as session:
+            assert session.get(type(prod), product_id).quantity == 8
+
+        with session_scope(session_factory) as session:
+            svc = ReportingService(session)
+            assert svc.dashboard_summary(admin, date.today()).transaction_count == 1
+            SaleService(session).cancel_sale(
+                admin, receipt_no=receipt_no, reason="Reverted by customer"
+            )
+
+        with session_scope(session_factory) as session:
+            svc = ReportingService(session)
+            start, end = _today_range()
+
+            dash = svc.dashboard_summary(admin, date.today())
+            assert dash.transaction_count == 0
+            assert dash.total_sales == Decimal("0")
+            assert dash.cogs == Decimal("0")
+            assert dash.pos_total == Decimal("0")
+
+            sales = svc.sales_report(admin, start, end)
+            assert sales.transaction_count == 0
+            assert sales.total_sales == Decimal("0")
+            assert len(sales.rows) == 0
+
+            profit = svc.profit_report(admin, start, end)
+            assert profit.total_sales == Decimal("0")
+            assert profit.cogs == Decimal("0")
+
+            payments = svc.payment_report(admin, start, end)
+            assert payments.rows == ()
+            assert payments.grand_total == Decimal("0")
+
+            products = svc.product_sales_report(admin, start, end)
+            assert len(products) == 0
+
+            cashiers = svc.cashier_sales_report(admin, start, end)
+            assert cashiers == ()
+
+            eod = svc.end_of_day_report(admin, date.today())
+            assert eod.total_sales == Decimal("0")
+            assert eod.transaction_count == 0
+            assert eod.pos_total == Decimal("0")
+
+        with session_factory() as check:
+            header = check.get(Sale, sale_id)
+            assert header.status == SALE_CANCELLED
+            assert check.get(type(prod), product_id).quantity == 10
 
 
 # -- Date boundary tests --------------------------------------------------- #

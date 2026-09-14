@@ -309,8 +309,8 @@ def test_difference_label_updates_live(qtbot, session_factory, session):
     # Change return qty to 2 (but max is 1 for this sale)
     page.return_qty_spin.setMaximum(2)
     page.return_qty_spin.setValue(2)
-    # Now 2x35000=70000 returned vs 1x40000=40000 = customer owed
-    assert "refund" in page.difference_label.text().lower()
+    # Now 2x35000=70000 returned vs 1x40000=40000 = customer store credit
+    assert "store credit" in page.difference_label.text().lower()
     assert not page.pos_button.isEnabled()
 
 
@@ -512,6 +512,7 @@ def test_exchange_expired_shows_error_on_complete(qtbot, session_factory, sessio
         session_factory,
         admin,
         confirm_popup=_confirm_yes,
+        override_popup=lambda *_a, **_k: None,
     )
     qtbot.addWidget(page)
     page.receipt_input.setText(sale.receipt_no)
@@ -530,6 +531,44 @@ def test_exchange_expired_shows_error_on_complete(qtbot, session_factory, sessio
 
     with session_factory() as check:
         assert check.scalar(select(Exchange)) is None
+
+
+def test_exchange_expired_override_reason_completes(qtbot, session_factory, session):
+    admin = make_user(session, role=ROLE_ADMIN)
+    customer = make_customer(session, name="Amina")
+    gown = make_product(
+        session, make_category(session), name="Gown", selling_price=Decimal("35000"), quantity=10
+    )
+    ankara = make_product(
+        session, make_category(session), name="Ankara", selling_price=Decimal("40000"), quantity=6
+    )
+    sale = make_recent_sale(session, customer, admin, days_old=3, items=[(gown, 1)])
+    session.commit()
+
+    page = _page(
+        session_factory,
+        admin,
+        confirm_popup=_confirm_yes,
+        complete_popup=lambda *_a, **_k: None,
+        override_popup=lambda *_a, **_k: "Customer was traveling",
+    )
+    qtbot.addWidget(page)
+    page.receipt_input.setText(sale.receipt_no)
+    page.find_button.click()
+
+    page.return_combo.setCurrentIndex(0)
+
+    page.replacement_search.setText("Ankara")
+    page.replacement_results.setCurrentRow(0)
+    page.replacement_add.click()
+
+    page.complete_button.click()
+
+    with session_factory() as check:
+        exchange = check.scalar(select(Exchange).order_by(Exchange.id.desc()))
+        assert exchange is not None
+        assert exchange.override_reason == "Customer was traveling"
+        assert exchange.payment_method == PAYMENT_POS
 
 
 def test_exchange_dialog_can_be_constructed(qtbot, session_factory, session):

@@ -94,12 +94,12 @@ def test_render_skips_barcode_for_empty_value():
 def test_render_replaces_naira_sign_with_n():
     data = _receipt()
     out = EscPosRenderer().render(data)
-    assert b"N35,000" in out
+    assert b"NGN35,000" in out
     assert NAIRA.encode("utf-8") not in out
 
 
 def test_encode_text_replaces_naira_on_cp437():
-    assert _encode_text(f"{NAIRA}5,500") == b"N5,500"
+    assert _encode_text(f"{NAIRA}5,500") == b"NGN5,500"
 
 
 def test_render_includes_receipt_number_and_shop():

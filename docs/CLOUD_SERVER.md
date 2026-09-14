@@ -65,7 +65,7 @@ The launcher defaults to `127.0.0.1:8000`; override with `FUNMITE_API_HOST` and
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `FUNMITE_CLOUD_DB_URL` | `sqlite:///cloud.db` | Cloud database URL. `postgresql://user:pass@host:5432/db` for the real backend (M2). Hosted providers set this (Render blueprint) or the standard `DATABASE_URL`. |
+| `FUNMITE_CLOUD_DB_URL` | `sqlite:///cloud.db` | Cloud database URL. `postgresql://user:pass@host:5432/db` for the real backend (M2). In hosted operation this is a provider secret (Neon connection string on Render) or the standard `DATABASE_URL`. |
 | `DATABASE_URL` | *(fallback)* | Standard provider variable; used only when `FUNMITE_CLOUD_DB_URL` is unset. |
 | `FUNMITE_API_HOST` | `127.0.0.1` | uvicorn bind host. |
 | `FUNMITE_API_PORT` | `8000` | uvicorn bind port. |

@@ -13,30 +13,34 @@ database URLs, passwords, API keys, or `.env` files.
 | Artifact | Purpose |
 |---|---|
 | `Procfile` | Render `web` start command. |
-| `render.yaml` | Optional blueprint: wires the service to a managed PostgreSQL database. |
+| `render.yaml` | Blueprint for the web service; the managed PostgreSQL is **external (Neon)** and its connection string is supplied as a provider secret. |
 | `app/sync/cloud_api.py` | The FastAPI app (module-level `app` = uvicorn target). |
 | `app/sync/cloud_db.py` | Engine bootstrap; `init_cloud_schema` = idempotent `create_all`. |
 | `/healthz` | Provider health check: `200` only when the DB answers. |
 
-## 1. Provision (Render console or `render.yaml`)
+## 1. Provision (Neon + Render)
 
-Two resources:
+Two resources across two providers:
 
-1. **Managed PostgreSQL** (e.g. `funmite-cloud-db`, database `funmite_cloud`).
-2. **Web service** running `python -m uvicorn app.sync.cloud_api:app
-   --host 0.0.0.0 --port $PORT --workers 1`, build command
-   `pip install -r requirements.txt`.
+1. **Managed PostgreSQL on Neon** — create a project; Neon returns a
+   connection string of the form
+   `postgresql://user:pass@host/dbname?sslmode=require`. The `sslmode=require`
+   is important: Neon only accepts TLS. `psycopg2` honours it from the URL, so
+   no code change is needed.
+2. **Web service on Render** — blueprints from `render.yaml`: one web service
+   running `python -m uvicorn app.sync.cloud_api:app --host 0.0.0.0 --port
+   $PORT --workers 1`, build command `pip install -r requirements.txt`.
 
-The `render.yaml` blueprint creates both and injects the database connection
-string as `FUNMITE_CLOUD_DB_URL` via `fromDatabase`. Do **not** redeploy the
-blueprint over an existing DB you want to keep; provision once and treat the
-database as data.
+The blueprint does **not** create a database and does not hold the connection
+string. In the Render dashboard (Environment → Secrets) set
+`FUNMITE_CLOUD_DB_URL` to the Neon connection string (an external resource
+managed by Neon; back it up per Neon's snapshot policy, never via this repo).
 
 ## 2. Environment variables (secrets live in the provider)
 
 | Variable | Set to | Notes |
 |---|---|---|
-| `FUNMITE_CLOUD_DB_URL` | managed PG connection string incl. any `sslmode` params | The app's primary variable. Render blueprints inject it automatically. |
+| `FUNMITE_CLOUD_DB_URL` | Neon connection string (incl. `?sslmode=require`) | The app's primary variable. Set it as a **secret in the provider** (Render Environment → Secrets). The blueprint declares it `sync: false`, so your value is never overwritten by deploys. |
 | `DATABASE_URL` | *(optional fallback)* | Used only if `FUNMITE_CLOUD_DB_URL` is unset. |
 | `PYTHONUNBUFFERED` | `true` | Flush logs in production. |
 | `FUNMITE_LOG_LEVEL` | `INFO` | Optional. |

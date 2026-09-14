@@ -1,12 +1,10 @@
 # Render blueprint for the Funmite cloud sync service (Phase 2 M3 hosting).
 #
-# This launches:
-#   - a managed PostgreSQL database (secrets live in Render, never in git), and
-#   - one web service running the FastAPI app against that database.
-#
-# The managed database connection string is injected into the service as
-# FUNMITE_CLOUD_DB_URL by Render's `fromDatabase` reference. The app also
-# falls back to the standard DATABASE_URL if it is set directly.
+# One web service runs the FastAPI app against a managed PostgreSQL hosted by
+# Neon (external provider). The Neon connection string is supplied as the
+# FUNMITE_CLOUD_DB_URL environment variable from the Render dashboard — the
+# blueprint declares it WITHOUT a value so the secret stays in the provider and
+# is never committed to git. The app also honours the standard DATABASE_URL.
 #
 # No credentials appear in this file.
 
@@ -20,14 +18,9 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
+      # Set the value in the Render dashboard (Environment → Secrets):
+      #   FUNMITE_CLOUD_DB_URL = <Neon connection string, e.g. with ?sslmode=require>
       - key: FUNMITE_CLOUD_DB_URL
-        fromDatabase:
-          name: funmite-cloud-db
-          property: connectionString
+        sync: false
       - key: PYTHONUNBUFFERED
         value: "true"
-
-databases:
-  - name: funmite-cloud-db
-    databaseName: funmite_cloud
-    user: funmite_cloud

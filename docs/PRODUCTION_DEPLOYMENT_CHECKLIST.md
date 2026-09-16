@@ -1,6 +1,6 @@
 # Funmite POS — Production Deployment Checklist
 
-**Version:** 1.3.0
+**Version:** 1.3.1
 **Date:** _______________
 **Deployed by:** _______________
 

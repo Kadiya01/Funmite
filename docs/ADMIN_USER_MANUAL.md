@@ -114,7 +114,7 @@ The Dashboard shows today's key metrics:
 
 1. Go to Expenses screen
 2. Click Add Expense
-3. Enter category, amount, description, date
+3. Select a category from the dropdown (or choose "Other" and type your own), enter amount, description, date
 4. Click Save
 
 ## Reports

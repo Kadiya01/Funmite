@@ -37,17 +37,28 @@ The following were confirmed in a single batch before the v1.3.0 release:
 - **Release/versioning** -- RESOLVED: ship this batch as **v1.3.0** and rebuild
   the standalone `.exe`.
 
-Still open after the batch (non-blocking): exact Excel CSV column headers for
-the product import template, whether a payment reference is mandatory, and the
-allowed set of expense categories.
+## v1.3.1 confirmed batch (shop-use decisions, round 2)
+
+The remaining shop-use decisions were confirmed before the v1.3.1 release:
+
+- **Product import format** — RESOLVED: the Phase 03 CSV template (Name,
+  Category, Brand, Size, Color, Cost Price, Selling Price, Quantity, Minimum
+  Stock, Product Code, Barcode) is final. CSV only, no Excel binary support.
+- **Payment reference** — RESOLVED: the till payment reference stays optional
+  for both POS and TRANSFER methods.
+- **Expense categories** — RESOLVED: the expense form now uses a standard
+  category dropdown (Rent, Utilities, Transport/Fuel, Salaries,
+  Repairs/Maintenance, Supplies/Packaging, Marketing, Licences/Fees) plus a
+  free-text "Other" field. The service itself still accepts any non-empty
+  category string, so legacy and custom categories keep working.
 
 ## From the master specification (section 8)
 
 - **Receipt branding/footer** -- RESOLVED: Wireframe candidate defaults implemented in `ReceiptBuilder`. Final text configurable in code constants; no functional blocker.
 - **Discount limits** -- RESOLVED: Admin-only discount confirmed (approved matrix). Implemented in Phase 05. `PERCENT` and `FIXED` with no ceiling; cannot make total negative.
 - **Receipt numbering format** -- RESOLVED: `FUN-YYYYMMDD-NNN` candidate implemented in Phase 05. Used in production. Prefix/digits localized in `sale_service.py`.
-- **Product import columns** — exact columns and format for bulk import (awaiting
-  the shop's actual Excel file; default CSV template implemented in Phase 03).
+- **Product import columns** — RESOLVED: the Phase 03 CSV template is final;
+  CSV only, no Excel binary support. Implemented in v1.3.1.
 - **Exchange refund / price-difference behavior** — RESOLVED: store credit
   (see v1.3.0 confirmed batch).
 - **Multi-item exchange rules** — RESOLVED: keep multi-item exchanges
@@ -80,7 +91,7 @@ allowed set of expense categories.
   auto-purge of old backups after each new backup (keep newest 30 / older than
   90 days) implemented in v1.3.0.
 - Which payment reference number is recorded for POS/Transfer transactions, if
-  any.
+  any. -- RESOLVED: the till reference stays optional for both methods (v1.3.1).
 - Whether product images are mandatory or optional.
 
 ## Added during development
@@ -93,8 +104,8 @@ allowed set of expense categories.
   whether the receipt barcode encodes the receipt number exactly. Candidate from the
   wireframes: the receipt barcode represents the receipt/transaction identifier.
 - **Expenses scope** — Artifact `05` checklist asks whether expenses include all shop
-  expenses or only selected categories. The approved schema has a free-text
-  `expenses.category`; the allowed set is unconfirmed.
+  expenses or only selected categories. -- RESOLVED: standard category dropdown
+  plus a free-text "Other" field (v1.3.1).
 - **Supplier purchase `balance` semantics** — Artifact `05` checklist asks whether
   `purchases.balance` is a true payable or simply an informational purchase record.
   Since credit sales are prohibited, this must not imply supplier credit terms
@@ -170,10 +181,10 @@ allowed set of expense categories.
 
 ## Added during Phase 05
 
-- **Payment reference field** — the technical architecture asks which reference
+- **Payment reference field** — RESOLVED: the technical architecture asked which reference
   number is recorded for POS/Transfer transactions. Phase 05 added an optional
-  free-text "Reference" field stored on `payments.reference`. Confirm whether a
-  reference should be mandatory for either method.
+  free-text "Reference" field stored on `payments.reference`. The reference stays
+  optional for both methods (v1.3.1).
 - **Cashier reprint rights** — RESOLVED: the Cashier may reprint receipts via the
   shared `CAP_REPRINT_RECEIPT` capability; Admin and Cashier can reprint, and a
   cancelled sale cannot be reprinted. Implemented in v1.3.0.
@@ -198,11 +209,10 @@ allowed set of expense categories.
   digit) rendered as Code128, which a generic scanner reads back as plain
   digits. No GS1/EAN allocation exists; confirm the final symbology/format
   before labels are mass-printed.
-- **Product import columns / format** — the exact import columns are
-  unconfirmed. Phase 03 implemented a documented default CSV template
-  (`Name,Category,Brand,Size,Color,Cost Price,Selling Price,Quantity,Minimum
-  Stock,Product Code,Barcode`) with flexible header aliases. Confirm or
-  replace before production data is imported.
+- **Product import columns / format** — RESOLVED: the exact import columns
+  are the Phase 03 CSV template (`Name,Category,Brand,Size,Color,Cost
+  Price,Selling Price,Quantity,Minimum Stock,Product Code,Barcode`) with
+  flexible header aliases. CSV only, no Excel binary support (v1.3.1).
 - **Import vs existing records** — importing *updates* to existing products
   is intentionally NOT implemented in Phase 03 (duplicates are reported and
   skipped). Confirm whether an update mode is required.

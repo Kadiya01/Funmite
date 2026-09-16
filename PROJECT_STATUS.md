@@ -5,7 +5,7 @@ actual code and test output before trusting the claims below.
 
 ## Current phase
 
-**v1.3.0 Shop-Use Decisions COMPLETE - Ready for Physical Validation & UAT** (826 tests passing)
+**v1.3.1 Shop-Use Decisions, round 2 COMPLETE - Ready for Physical Validation & UAT** (838 tests passing)
 
 ## Completed phases
 
@@ -25,6 +25,7 @@ actual code and test output before trusting the claims below.
 | 11 | Production Hardening & Deployment | COMPLETE |
 | -- | UI/UX Polish (v1.3.0) | COMPLETE |
 | -- | Shop-Use Decisions (v1.3.0) | COMPLETE |
+| -- | Shop-Use Decisions, round 2 (v1.3.1) | COMPLETE |
 | 12 | Physical Hardware Validation & UAT | PENDING - waiting for hardware |
 
 ## Next action
@@ -526,6 +527,28 @@ Confirmed shop-use rules shipped in v1.3.0. 826 tests passing; no regressions.
   deployment and UAT checklists; standalone EXE rebuilt.
 - Migration 005 adds `customer_credits` table and rebuilds `sales`, `payments`
   and `exchanges` (idempotent).
+
+
+## v1.3.1 Shop-Use Decisions, round 2 summary
+
+Remaining shop-use decisions shipped in v1.3.1. 838 tests passing; no
+regressions.
+
+- Product import format: the Phase 03 CSV template (Name, Category, Brand, Size,
+  Color, Cost Price, Selling Price, Quantity, Minimum Stock, Product Code,
+  Barcode) is final — CSV only, no Excel binaries.
+- Payment reference: stays optional for both POS and TRANSFER payments.
+- Expense categories: `ExpenseFormDialog` now uses a standard category dropdown
+  (Rent, Utilities, Transport/Fuel, Salaries, Repairs/Maintenance,
+  Supplies/Packaging, Marketing, Licences/Fees) plus a free-text "Other" field.
+  `STANDARD_EXPENSE_CATEGORIES` is defined in `expense_service.py`; the service
+  still accepts any non-empty category string, so legacy/custom values keep
+  working — no data migration.
+- Migration hotfix: the 005 table-rebuild backfills `NULL` legacy `sync_uuid`
+  rows (`COALESCE(sync_uuid, lower(hex(randomblob(16))))`) so upgrading a
+  real-world database no longer fails.
+- Version unified to 1.3.1 across `__version__`, `pyproject.toml`, docs, spec,
+  deployment and UAT checklists; standalone EXE rebuilt.
 
 
 ## Blockers

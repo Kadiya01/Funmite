@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for Funmite POS v1.3.0
+# PyInstaller spec for Funmite POS v1.3.1
 
 import sys
 from pathlib import Path

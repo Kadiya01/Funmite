@@ -270,7 +270,7 @@ The packaged application has been verified to:
 | Multi-item exchange rules | Phase 06 | Open |
 | Backup encryption | Phase 09 | Open |
 | Backup auto-purge/retention | Phase 09 | Open |
-| Expenses scope (free-text category) | Phase 07 | Open |
+| Expenses scope (free-text category) | Phase 07 | Resolved in v1.3.1 (standard dropdown + free-text "Other") |
 | Supplier purchase balance semantics | Phase 07 | Open |
 | Customer-record management permission | Phase 03 | Open |
 | Inventory management viewing permission | Phase 04 | Open |

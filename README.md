@@ -10,6 +10,11 @@ unresolved client decisions.
 
 ## Status
 
+**v1.3.1 (Shop-Use Decisions, round 2) — complete.** Resolved the remaining shop
+decisions: the product-import CSV template is final, the till payment reference
+stays optional, and expenses use a standard category dropdown with a free-text
+"Other" option.
+
 **v1.3.0 (Shop-Use Decisions) — complete.** Confirmed shop-use rules shipped:
 store credit for exchange refunds that is spendable at the till, admin 2-day
 exchange override with audit, admin sale cancellation (reverse + void), cashier

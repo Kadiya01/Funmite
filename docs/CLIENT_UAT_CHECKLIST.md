@@ -1,7 +1,7 @@
 # Funmite POS — Client UAT Checklist
 
 **Project:** Funmite Clothing & Beyond
-**Version:** 1.3.0
+**Version:** 1.3.1
 **Date:** _______________
 **Client Representative:** _______________
 **Developer:** _______________
@@ -158,8 +158,11 @@
 |----|----------|-----------------|---------------|-----------|----------------|-------------------|
 | H1 | Record a new expense | Expense saved | | | | |
 | H2 | Expense has category, amount, description | All fields saved | | | | |
-| H3 | Edit an expense | Details updated | | | | |
-| H4 | Filter expenses by category | Correct expenses shown | | | | |
+| H3 | Choose a standard category from the dropdown | Category saved as chosen | | | | |
+| H4 | Choose "Other" and type a custom category | Custom category saved | | | | |
+| H5 | Save with category still blank (prompt) | Blocked with a clear message | | | | |
+| H6 | Edit an expense | Details updated | | | | |
+| H7 | Filter expenses by category | Correct expenses shown | | | | |
 
 **Section H Sign-off:** _______________ Date: _______________
 
@@ -272,7 +275,7 @@
 | E. Receipt Printing | 13 | | | |
 | F. Inventory | 6 | | | |
 | G. Purchases | 7 | | | |
-| H. Expenses | 4 | | | |
+| H. Expenses | 7 | | | |
 | I. Exchanges | 7 | | | |
 | J. Reports | 10 | | | |
 | K. Dashboard | 6 | | | |

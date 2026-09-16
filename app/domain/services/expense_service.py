@@ -9,8 +9,10 @@ Confirmed rules enforced here (source-of-truth artifacts):
 - Admin is the only user allowed to manage expenses (``CAP_MANAGE_EXPENSES``).
 - An expense must have a non-empty category, a positive amount, and an expense
   date.
-- The ``category`` field is free-text; the allowed set is an open decision
-  (see ``OPEN_DECISIONS.md``).
+- The expense form offers a standard category dropdown (see
+  ``STANDARD_EXPENSE_CATEGORIES``) plus a free-text ``Other`` field. The
+  service itself accepts any non-empty category string, so legacy categories
+  and custom ``Other`` values keep working (RESOLVED in v1.3.1).
 - Expenses are deducted from gross profit to produce net profit (Phase 08
   reports). Phase 07 records the data; Phase 08 consumes it.
 """
@@ -29,6 +31,19 @@ from app.domain.permissions import CAP_MANAGE_EXPENSES, require_permission
 from app.domain.rules.validation import parse_decimal
 from app.domain.session import user_record_id
 from app.domain.services.sync_service import SyncService
+
+OTHER_CATEGORY_LABEL = "Other"
+STANDARD_EXPENSE_CATEGORIES = (
+    "Rent",
+    "Utilities",
+    "Transport/Fuel",
+    "Salaries",
+    "Repairs/Maintenance",
+    "Supplies/Packaging",
+    "Marketing",
+    "Licences/Fees",
+    OTHER_CATEGORY_LABEL,
+)
 
 
 class ExpenseService:

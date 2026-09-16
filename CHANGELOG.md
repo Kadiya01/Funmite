@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## [1.3.1] — Shop-Use Decisions, round 2
+
+Confirmed remaining shop-use decisions shipped as v1.3.1:
+
+- **Product import format**: the Phase 03 CSV template (Name, Category, Brand,
+  Size, Color, Cost Price, Selling Price, Quantity, Minimum Stock, Product Code,
+  Barcode) is final — CSV only, no Excel binaries.
+- **Payment reference**: stays optional for both POS and TRANSFER payments.
+- **Expense categories**: the expense form now offers a standard category
+  dropdown (Rent, Utilities, Transport/Fuel, Salaries, Repairs/Maintenance,
+  Supplies/Packaging, Marketing, Licences/Fees) plus a free-text "Other" field.
+  The service still accepts any non-empty category string, so legacy and custom
+  categories keep working — no data migration is needed.
+- **Migration hotfix**: the table-rebuild in migration 005 now backfills
+  `NULL` legacy `sync_uuid` rows instead of failing.
+
 ## [1.3.0] — Shop-Use Decisions (confirmed batch)
 
 Confirmed shop-use rules shipped as v1.3.0:

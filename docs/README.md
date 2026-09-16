@@ -60,7 +60,7 @@ application services and displays results.
   semantics are an open decision).
 - `app/domain/services/expense_service.py` — `ExpenseService` provides
   Admin-only (`CAP_MANAGE_EXPENSES`) create, update and list for business expenses.
-  Free-text category, positive amount, optional description. Expenses are deducted
+  Category from a standard dropdown plus a free-text "Other" field, positive amount, optional description. Expenses are deducted
   from gross profit to produce net profit (Phase 08 reports).
 - `app/data/repositories/supplier_repository.py` — list with search, count.
 - `app/data/repositories/purchase_repository.py` — list with date range and
@@ -72,7 +72,7 @@ application services and displays results.
   supplier selection, product add (qty + unit cost), live total, amount-paid field,
   complete action.
 - `app/ui/expenses/` — Admin screen: expense list with category filter and
-  total, add/edit form with category, amount, description and date.
+  total, add/edit form with a category dropdown (plus free-text "Other"), amount, description and date.
 - `app/ui/reports/reports_page.py` — Admin screen: tab-based reporting with
   date-range filters (From/To/Run). Tabs: Sales, Profit, Inventory, Payments,
   Purchases, Expenses, Product Sales, Cashier Sales, End of Day. Each tab

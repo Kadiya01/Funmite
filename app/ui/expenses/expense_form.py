@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QFormLayout,
     QLabel,
@@ -17,9 +18,14 @@ from PySide6.QtWidgets import (
 from app.ui.theme import C, F, S
 from app.data.models import Expense
 from app.domain.errors import ValidationError
+from app.domain.services.expense_service import (
+    OTHER_CATEGORY_LABEL,
+    STANDARD_EXPENSE_CATEGORIES,
+)
 from app.utils.formatting import format_money
 
 GENERIC_SAVE_ERROR = "Could not save the expense. Please try again."
+_CATEGORY_PROMPT = "-- Select category --"
 
 
 class ExpenseFormDialog(QDialog):
@@ -45,9 +51,17 @@ class ExpenseFormDialog(QDialog):
 
         form = QFormLayout()
 
-        self.category_input = QLineEdit()
-        self.category_input.setPlaceholderText("e.g. Transport, Rent, Utilities")
-        form.addRow("Category:", self.category_input)
+        self.category_combo = QComboBox()
+        self.category_combo.addItem(_CATEGORY_PROMPT, None)
+        for category in STANDARD_EXPENSE_CATEGORIES:
+            display = f"{OTHER_CATEGORY_LABEL}…" if category == OTHER_CATEGORY_LABEL else category
+            self.category_combo.addItem(display, category)
+        self.other_input = QLineEdit()
+        self.other_input.setPlaceholderText("Type the expense category")
+        self.other_input.setVisible(False)
+        self.category_combo.currentIndexChanged.connect(self._toggle_other_field)
+        form.addRow("Category:", self.category_combo)
+        form.addRow("", self.other_input)
 
         self.amount_input = QLineEdit()
         self.amount_input.setPlaceholderText("e.g. 5000")
@@ -89,14 +103,39 @@ class ExpenseFormDialog(QDialog):
             self._populate(existing)
 
     def _populate(self, expense: Expense) -> None:
-        self.category_input.setText(expense.category)
+        self._select_category(expense.category or "")
         self.amount_input.setText(str(expense.amount))
         self.description_input.setText(expense.description or "")
         self.date_input.setText(expense.expense_date.strftime("%d/%m/%Y"))
 
+    def _select_category(self, category: str) -> None:
+        if category and category != OTHER_CATEGORY_LABEL:
+            index = self.category_combo.findData(category)
+            if index >= 0:
+                self.category_combo.setCurrentIndex(index)
+                return
+        other_index = self.category_combo.findData(OTHER_CATEGORY_LABEL)
+        self.category_combo.setCurrentIndex(other_index)
+        self.other_input.setText(category)
+        self.other_input.setVisible(True)
+
+    def _toggle_other_field(self) -> None:
+        is_other = self.category_combo.currentData() == OTHER_CATEGORY_LABEL
+        self.other_input.setVisible(is_other)
+        if not is_other:
+            self.other_input.clear()
+
+    def _selected_category(self) -> str:
+        selected = self.category_combo.currentData()
+        if selected is None:
+            return ""
+        if selected == OTHER_CATEGORY_LABEL:
+            return self.other_input.text().strip()
+        return selected
+
     def values(self) -> dict:
         return {
-            "category": self.category_input.text().strip(),
+            "category": self._selected_category(),
             "amount": self.amount_input.text().strip(),
             "description": self.description_input.text().strip(),
             "date": self.date_input.text().strip(),

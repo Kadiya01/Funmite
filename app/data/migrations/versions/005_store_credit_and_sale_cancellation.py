@@ -198,9 +198,18 @@ def _rebuild_table(bind, table: str, ddl: str) -> None:
             new_cols = _table_columns(conn, new_name)
             shared = sorted(old_cols & new_cols)
             if shared:
+                select_exprs = [
+                    (
+                        f"COALESCE({col}, lower(hex(randomblob(16)))) AS {col}"
+                        if col == "sync_uuid"
+                        else col
+                    )
+                    for col in shared
+                ]
                 cols = ", ".join(shared)
+                selects = ", ".join(select_exprs)
                 conn.exec_driver_sql(
-                    f"INSERT INTO {new_name} ({cols}) SELECT {cols} FROM {table}"
+                    f"INSERT INTO {new_name} ({cols}) SELECT {selects} FROM {table}"
                 )
 
             indexes = _table_indexes(conn, table)

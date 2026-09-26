@@ -8,6 +8,7 @@ exchange window and daily reports follow the shop calendar.
 
 from __future__ import annotations
 
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -23,8 +24,10 @@ DB_FILENAME = "funmite.db"
 def _set_sqlite_pragmas(dbapi_connection, connection_record) -> None:
     cursor = dbapi_connection.cursor()
     try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=10000")
         cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.execute("PRAGMA busy_timeout=5000")
     finally:
         cursor.close()
 
@@ -89,6 +92,52 @@ def database_path(settings) -> Path:
 def initialize_database(settings) -> Engine:
     """Create runtime directories, build the engine and apply migrations."""
     settings.ensure_directories()
-    engine = create_db_engine(database_path(settings))
-    runner.upgrade(engine)
+    db_path = database_path(settings)
+    engine = create_db_engine(db_path)
+    runner.upgrade(engine, db_path=db_path, backup_dir=settings.backup_dir)
     return engine
+
+
+def _cli_usage() -> str:
+    return (
+        "Funmite POS database utility.\n"
+        "\n"
+        "This module is NOT the desktop application entry point. Start the\n"
+        "application with:\n"
+        "    python -m app.main              (development)\n"
+        "    dist\\FunmitePOS\\FunmitePOS.exe  (packaged build)\n"
+        "\n"
+        "Commands:\n"
+        "    init      Create or upgrade the database without starting the UI\n"
+        "    help      Show this help\n"
+    )
+
+
+def _cli_main(argv: list[str] | None = None) -> int:
+    """Handle ``python -m app.data.db [help|init]`` without importing Qt."""
+    args = list(sys.argv[1:] if argv is None else argv)
+    if not args or args[0] in ("-h", "--help", "help"):
+        print(_cli_usage())
+        return 0
+    if args[0] == "init":
+        from app.config import load_settings
+
+        settings = load_settings()
+        engine = initialize_database(settings)
+        try:
+            version = runner.current_version(engine)
+        finally:
+            engine.dispose()
+        print(
+            f"Funmite database ready: {database_path(settings)} "
+            f"(schema version {version})"
+        )
+        print(f"Pre-upgrade backups are stored in: {settings.backup_dir}")
+        return 0
+    print(f"Unknown command: {args[0]}\n")
+    print(_cli_usage())
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(_cli_main())

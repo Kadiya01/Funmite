@@ -586,7 +586,7 @@ Details and rationale in `OPEN_DECISIONS.md`.
 
 On restart:
 
-1. Run `.venv\Scripts\python.exe -m pytest` — expect 657 passing tests.
+1. Run `.venv\Scripts\python.exe -m pytest -o addopts=` — expect the full suite to pass; current per-phase totals live in `REMEDIATION_MATRIX.md`.
 2. Run the offscreen smoke: `python -m app.main` should show the login dialog
    (offline-safe). Log in with `admin/admin123` (Admin) to see the Dashboard
    (today KPIs + low-stock), POS, Products, Inventory, Customers, Purchases,

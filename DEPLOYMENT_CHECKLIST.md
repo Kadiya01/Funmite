@@ -6,7 +6,7 @@ Date: August 2026
 ## 1. Pre-Deployment Preparation
 
 ### 1.1 Build Verification
-- [ ] Run full regression suite: `.venv\Scripts\python.exe -m pytest` — 838 tests passing
+- [ ] Run full regression suite: `.venv\Scripts\python.exe -m pytest -o addopts=` — expect the full suite to pass; exact current totals are recorded per phase in `REMEDIATION_MATRIX.md`
 - [ ] Build executable: `.venv\Scripts\python.exe -m PyInstaller funmite_pos.spec --noconfirm`
 - [ ] Verify `dist/FunmitePOS/FunmitePOS.exe` exists
 - [ ] Launch exe and confirm login dialog appears
@@ -17,6 +17,7 @@ Date: August 2026
 - [ ] After first launch, verify `data/`, `logs/`, `backups/` created next to exe
 - [ ] Verify `data/funmite.db` exists (SQLite database)
 - [ ] Create a backup from Settings — verify file appears in `backups/`
+- [ ] Point `FUNMITE_BACKUP_DIR` at an external or network drive so a single-disk failure cannot destroy data and backups together (see DEPLOYMENT_GUIDE → Backup Strategy)
 - [ ] Check `logs/funmite.log` for any errors
 
 ### 1.3 Configuration

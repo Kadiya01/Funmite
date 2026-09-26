@@ -1,4 +1,8 @@
-# Funmite POS — approved core stack (Phase 00 foundation)
+# Funmite POS — approved core stack (Phase 00 foundation).
+# Curated DIRECT dependencies, mirroring [project] in pyproject.toml (keep in sync).
+# This is the list the app workflows install (`scripts/run_dev.bat`,
+# `scripts/run_tests.bat`, `render.yaml`). The frozen PyInstaller build
+# environment snapshot lives in requirements-build.txt.
 # PySide6-Essentials only: QtCore/QtGui/QtWidgets. The full PySide6 metapackage
 # pulls the ~170MB Addons wheel; add it later only if a phase needs QtCharts etc.
 PySide6-Essentials>=6.7
@@ -6,6 +10,10 @@ SQLAlchemy>=2.0
 FastAPI>=0.110
 uvicorn>=0.29
 python-dotenv>=1.0
+
+# HTTP client + validation used by the cloud sync client and schemas
+httpx>=0.27
+pydantic>=2.0
 
 # Barcode label rendering (Phase 03)
 python-barcode>=0.15

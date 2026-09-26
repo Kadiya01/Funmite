@@ -7,6 +7,7 @@ to the cashier's own user_id.
 from __future__ import annotations
 
 from datetime import date, datetime, time
+from decimal import Decimal
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -30,6 +31,11 @@ from app.utils.formatting import format_money
 
 def _today() -> date:
     return date.today()
+
+
+def _sales_total(rows) -> Decimal:
+    """Sum sale totals with exact Decimal arithmetic for display."""
+    return sum((row.total for row in rows), Decimal("0"))
 
 
 def _start_of_month() -> date:
@@ -133,7 +139,6 @@ class MySalesPage(QWidget):
 
         rows = summary.rows
         self.table.setRowCount(len(rows))
-        total_sales = 0
         for i, row in enumerate(rows):
             self.table.setItem(i, 0, QTableWidgetItem(row.receipt_no))
             dt = row.sale_date
@@ -145,9 +150,9 @@ class MySalesPage(QWidget):
             self.table.setItem(i, 3, QTableWidgetItem(format_money(amt)))
             self.table.setItem(i, 4, QTableWidgetItem(row.payment_method))
             self.table.setItem(i, 5, QTableWidgetItem(row.cashier_name))
-            total_sales += float(amt)
 
         count = len(rows)
+        total_sales = _sales_total(rows)
         self.summary_label.setText(
             f"  Transactions: {count}     Total Sales: {format_money(total_sales)}"
         )

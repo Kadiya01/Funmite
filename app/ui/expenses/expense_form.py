@@ -22,7 +22,6 @@ from app.domain.services.expense_service import (
     OTHER_CATEGORY_LABEL,
     STANDARD_EXPENSE_CATEGORIES,
 )
-from app.utils.formatting import format_money
 
 GENERIC_SAVE_ERROR = "Could not save the expense. Please try again."
 _CATEGORY_PROMPT = "-- Select category --"

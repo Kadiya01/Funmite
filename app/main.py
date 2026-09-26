@@ -67,7 +67,6 @@ QListWidget {{
     background-color: {C.SIDEBAR_BG};
     border: none;
     border-right: 1px solid {darken(C.SIDEBAR_BG, 5)};
-    outline: none;
     font-size: {F.SIZE_BASE};
     padding: 4px 0;
 }}
@@ -144,6 +143,7 @@ class MainWindow(QMainWindow):
         status_bar.showMessage(status)
 
         self._sync_indicator = QLabel("☁ Offline — Working locally")
+        self._sync_indicator.setToolTip("Sync state. See Settings > Cloud Sync & Device for details.")
         self._sync_indicator.setStyleSheet(
             f"color: {C.MUTED_FG}; padding-right: 8px; font-size: 11px;"
         )
@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
                 else:
                     self._sync_indicator.setText(f"☁ {count} pending")
                     self._sync_indicator.setStyleSheet(
-                        f"color: #F59E0B; padding-right: 8px; font-size: 11px;"
+                        f"color: {C.WARNING}; padding-right: 8px; font-size: 11px;"
                     )
         except Exception:
             self._sync_indicator.setText("☁ Offline — Working locally")
@@ -244,6 +244,7 @@ class MainWindow(QMainWindow):
 
         # Navigation list
         self.nav = QListWidget()
+        self.nav.setAccessibleName("Main navigation")
         self.nav.setStyleSheet(_SIDEBAR_QSS)
         self.nav.setSpacing(0)
         self.nav.setIconSize(QSize(18, 18))

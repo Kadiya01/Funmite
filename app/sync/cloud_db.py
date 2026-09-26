@@ -27,7 +27,9 @@ _DEFAULT_CLOUD_DB = "sqlite:///cloud.db"
 def _set_sqlite_pragmas(dbapi_connection, connection_record) -> None:
     cursor = dbapi_connection.cursor()
     try:
-        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=10000")
     finally:
         cursor.close()
 

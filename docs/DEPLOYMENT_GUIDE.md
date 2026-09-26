@@ -66,6 +66,13 @@ FUNMITE_LOG_LEVEL=WARNING
 Default: `C:\FunmitePOS\backups\`
 Configure: Set `FUNMITE_BACKUP_DIR` in `.env`
 
+> The built-in default keeps backups on the same drive as the app — a single
+> drive failure would destroy the data and its backups together. For real
+> disaster recovery, set `FUNMITE_BACKUP_DIR` to an external or network drive
+> (a USB drive, or a `\\NAS\share\funmite-backups\` path). The Settings →
+> Backup & Restore panel shows the active location and warns when backups sit
+> on the same drive as the database.
+
 ## Updating
 
 1. Back up the current installation

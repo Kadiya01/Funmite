@@ -7,6 +7,7 @@ A restore always creates a pre-restore safety backup first.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -55,6 +56,17 @@ def _format_size(size_bytes: int) -> str:
 def _format_datetime(dt) -> str:
     """Format a datetime for display."""
     return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _same_volume(path_a: Path, path_b: Path) -> bool:
+    """True when both paths resolve to the same drive letter or share."""
+    try:
+        return (
+            Path(os.path.abspath(path_a)).anchor
+            == Path(os.path.abspath(path_b)).anchor
+        )
+    except OSError:
+        return True
 
 
 class SettingsPage(QWidget):
@@ -123,6 +135,12 @@ class SettingsPage(QWidget):
         self.backup_count_label = QLabel("No backups")
         self.backup_count_label.setStyleSheet(f"color: {C.MUTED_FG};")
         backup_layout.addWidget(self.backup_count_label)
+
+        self.backup_location_label = QLabel("")
+        self.backup_location_label.setWordWrap(True)
+        self.backup_location_label.setStyleSheet(f"color: {C.MUTED_FG};")
+        backup_layout.addWidget(self.backup_location_label)
+        self._set_backup_location_hint()
 
         # Danger zone
         danger_zone = QFrame()
@@ -306,6 +324,21 @@ class SettingsPage(QWidget):
             self.backup_count_label.setText(f"{count} backups")
 
         self._refresh_sync_section()
+
+    def _set_backup_location_hint(self) -> None:
+        """Explain where backups land and warn about same-drive setups."""
+        backup_dir = Path(os.path.abspath(self._settings.backup_dir))
+        if _same_volume(backup_dir, self._settings.data_dir):
+            self.backup_location_label.setText(
+                f"Backup folder: {backup_dir}\n"
+                "Same drive as your data. For disaster recovery, set "
+                "FUNMITE_BACKUP_DIR to an external or network drive."
+            )
+        else:
+            self.backup_location_label.setText(
+                f"Backup folder: {backup_dir}\n"
+                "Stored on a separate drive from the database."
+            )
 
     def _on_backup(self) -> None:
         """Create a new backup."""

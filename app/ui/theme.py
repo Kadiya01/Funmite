@@ -21,8 +21,8 @@ class C:
     SECONDARY = "#475569"
     ON_SECONDARY = "#FFFFFF"
 
-    ACCENT = "#059669"
-    ACCENT_HOVER = "#047857"
+    ACCENT = "#047857"
+    ACCENT_HOVER = "#006948"
     ACCENT_LIGHT = "#D1FAE5"
     ON_ACCENT = "#FFFFFF"
 
@@ -41,17 +41,17 @@ class C:
     BORDER_LIGHT = "#F1F5F9"
     DIVIDER = "#CBD5E1"
 
-    DESTRUCTIVE = "#DC2626"
+    DESTRUCTIVE = "#B91C1C"
     DESTRUCTIVE_LIGHT = "#FEE2E2"
     ON_DESTRUCTIVE = "#FFFFFF"
 
-    WARNING = "#F59E0B"
+    WARNING = "#92400E"
     WARNING_LIGHT = "#FEF3C7"
-    SUCCESS = "#059669"
+    SUCCESS = "#047857"
     SUCCESS_LIGHT = "#D1FAE5"
 
     RING = "#334155"
-    FOCUS_RING = "#93C5FD"
+    FOCUS_RING = "#2563EB"
 
     TABLE_HEADER_BG = "#334155"
     TABLE_HEADER_FG = "#FFFFFF"
@@ -66,7 +66,7 @@ class C:
     SIDEBAR_ACTIVE_FG = "#FFFFFF"
     SIDEBAR_ACCENT = "#059669"
 
-    INFO = "#3B82F6"
+    INFO = "#1D4ED8"
     INFO_LIGHT = "#DBEAFE"
 
     SCROLLBAR_BG = "#F1F5F9"
@@ -271,6 +271,12 @@ QPushButton#btnSuccess:hover, QPushButton[cssClass="success"]:hover {{
 QPushButton:focus {{
     border: 2px solid {C.FOCUS_RING};
 }}
+QPushButton#btnPrimary:focus, QPushButton[cssClass="primary"]:focus,
+QPushButton#btnDanger:focus, QPushButton[cssClass="danger"]:focus,
+QPushButton#btnSecondary:focus, QPushButton[cssClass="secondary"]:focus,
+QPushButton#btnSuccess:focus, QPushButton[cssClass="success"]:focus {{
+    border: 2px solid {C.FOCUS_RING};
+}}
 
 /* --- Badges --- */
 QLabel[cssClass="badge-active"] {{
@@ -284,7 +290,7 @@ QLabel[cssClass="badge-active"] {{
 }}
 QLabel[cssClass="badge-inactive"] {{
     background-color: {C.MUTED};
-    color: {C.MUTED_FG};
+    color: {C.FG_SECONDARY};
     border-radius: {S.RADIUS_SM};
     padding: 4px 8px;
     font-size: {F.SIZE_XS};
@@ -367,7 +373,6 @@ QComboBox QAbstractItemView {{
     padding: 4px 0;
     selection-background-color: {C.ACCENT_LIGHT};
     selection-color: {C.FG};
-    outline: none;
 }}
 
 QSpinBox::up-button, QSpinBox::down-button {{
@@ -425,7 +430,6 @@ QTableWidget, QTableView {{
     selection-background-color: {C.TABLE_SELECTION};
     selection-color: {C.FG};
     font-size: {F.SIZE_BASE};
-    outline: none;
     alternate-background-color: {C.TABLE_ALT_ROW};
 }}
 QTableWidget::item, QTableView::item {{
@@ -462,7 +466,7 @@ QTabWidget::pane {{
 }}
 QTabBar::tab {{
     background-color: {C.MUTED};
-    color: {C.MUTED_FG};
+    color: {C.FG_SECONDARY};
     border: 1px solid {C.BORDER_LIGHT};
     border-bottom: none;
     border-radius: {S.RADIUS_SM} {S.RADIUS_SM} 0 0;
@@ -471,11 +475,18 @@ QTabBar::tab {{
     font-weight: {F.WEIGHT_MEDIUM};
     margin-right: 2px;
 }}
+QTabBar::tab:focus {{
+    border: 1px solid {C.FOCUS_RING};
+    border-bottom: none;
+}}
 QTabBar::tab:selected {{
     background-color: {C.CARD};
     color: {C.ACCENT};
     border-bottom: 2px solid {C.ACCENT};
     font-weight: {F.WEIGHT_SEMIBOLD};
+}}
+QTabBar::tab:selected:focus {{
+    border-bottom: 2px solid {C.ACCENT};
 }}
 QTabBar::tab:hover:!selected {{
     background-color: {C.BORDER_LIGHT};

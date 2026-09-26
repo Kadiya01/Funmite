@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import re
 from datetime import date, datetime, time
+from decimal import Decimal
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -39,6 +40,19 @@ from app.utils.formatting import format_money
 
 def _today() -> date:
     return date.today()
+
+
+def _daily_sales_series(rows) -> list[tuple[str, float]]:
+    """Aggregate sale rows into chart-ready daily totals.
+
+    Accumulates with exact Decimal arithmetic and only converts to ``float``
+    at the chart boundary (the chart layer consumes native numbers).
+    """
+    daily: dict[str, Decimal] = {}
+    for row in rows:
+        date_str = row.sale_date.strftime("%b %d")
+        daily[date_str] = daily.get(date_str, Decimal("0")) + row.total
+    return [(date_str, float(total)) for date_str, total in daily.items()]
 
 
 def _start_of_month() -> date:
@@ -298,15 +312,8 @@ class ReportsPage(QWidget):
     def _populate_sales(self, report) -> None:
         t = self.sales_table
         t.setRowCount(0)
-        
-        # Aggregate daily sales for chart
-        daily_sales = {}
-        
+
         for row in report.rows:
-            # Aggregate for chart
-            date_str = row.sale_date.strftime("%b %d")
-            daily_sales[date_str] = daily_sales.get(date_str, 0) + float(row.total)
-            
             r = t.rowCount()
             t.insertRow(r)
             values = [
@@ -326,11 +333,11 @@ class ReportsPage(QWidget):
                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                     )
                 t.setItem(r, c, item)
-                
-        # Set chart data
-        chart_data = [(date, val) for date, val in daily_sales.items()]
-        # Sort by date implicitly by keeping them in chronological order if possible, or just plot
-        self.sales_chart.set_data(list(reversed(chart_data))[:10])  # Show up to 10 days
+
+        # Set chart data (Decimal math; floats only at the chart boundary)
+        self.sales_chart.set_data(
+            list(reversed(_daily_sales_series(report.rows)))[:10]  # up to 10 days
+        )
 
         self._report_data[self.sales_tab] = (
             ["Receipt", "Date", "Customer", "Cashier", "Subtotal", "Discount", "Total", "Method"],

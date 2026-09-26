@@ -21,6 +21,16 @@ SQLite cannot alter a CHECK constraint and refuses to toggle
 on a dedicated AUTOCOMMIT connection with foreign keys disabled, following
 SQLite's documented table-swap recipe. The migration-runner transaction only
 records ``schema_version`` afterwards.
+
+The rebuild is inherently NON-ATOMIC: the AUTOCOMMIT connection commits its
+swaps independently of the runner transaction. If the process dies between
+``DROP TABLE <table>`` and ``ALTER TABLE <table>_mig5 RENAME TO <table>``, the
+original table is gone and the copied rows survive only in the staging table.
+The runner now creates an automatic WAL-safe pre-upgrade backup
+(``sqlite3.Connection.backup()``) before running any migration — that backup
+is the recovery mechanism for exactly this failure. A re-run is also safe:
+every rebuild is guarded by schema detection (``_check_accepts_credit`` /
+``_table_exists``) and starts by dropping any leftover staging table.
 """
 
 from __future__ import annotations
@@ -185,6 +195,12 @@ def _rebuild_table(bind, table: str, ddl: str) -> None:
     (SQLite's required recipe for changing a CHECK constraint on a referenced
     table). The columns copied are the intersection of the old and new schema,
     so any non-additive changes would need to be handled explicitly here.
+
+    Non-atomic: this commits outside the runner transaction. On failure the
+    ``finally`` restores ``PRAGMA foreign_keys=ON`` before re-raising; the
+    pre-upgrade backup made by the runner is the recovery mechanism. A later
+    re-run drops any leftover ``{table}_mig5`` staging table first, so the
+    rebuild is safe to attempt again.
     """
     engine = bind.engine
     new_name = f"{table}_mig5"
